@@ -27,3 +27,11 @@
 *.exe
 *.out
 *.app
+
+build
+lib
+*~
+dmlc-core
+cli_test
+*.pyc
+nnvm
