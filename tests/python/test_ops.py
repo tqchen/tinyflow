@@ -16,5 +16,11 @@ def test_ewise():
     check_ewise(lambda x, y: x+y)
     check_ewise(lambda x, y: x*y)
 
+def test_assign():
+    x = tf.Variable(tf.zeros(shape=[2,3]))
+    sess = tf.Session()
+    sess.run(tf.assign(x, tf.zeros(shape=[2,3])))
+    print sess.run(x)
+
 if __name__ == "__main__":
-    test_ewise()
+    test_assign()

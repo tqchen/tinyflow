@@ -178,7 +178,7 @@ void TorchExecutor::Init(nnvm::Symbol symbol, VarStateMap* states) {
         (*states)[key] = std::make_shared<VarState>();
       }
       node_states_[nid] = states->at(key).get();
-      if (read_count[nid] != 0) {
+      if (read_count[nid] != 0 || assign_count[nid] == 0) {
         read_var_nids_.push_back(nid);
       }
       if (assign_count[nid] != 0) {
