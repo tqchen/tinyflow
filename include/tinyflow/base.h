@@ -45,12 +45,34 @@ struct TBlob {
 };
 
 /*!
- * \brief a lua code descriping the compute function
- *  written as function(inputs, outputs)
- *  where inputs and outputs are positional arguments of table.
+ * \brief a lua function to carry out computation of an op.
+ *
+ *  Signature:
+ *  function(inputs, outputs)
+ *  - inputs: array of input torch.FloatTensor
+ *  - outputs: array of input torch.FloatTensor
+ *  - return: no return value
+ *
+ *  After this function, outputs content are set to be correct value.
+ *  This function cannot change the storage of inputs and outputs.
+ * \note Register as FLuaCompute
  */
-using FLuaComputeCode = std::string;
+using FLuaCompute = std::string;
 
+/*!
+ * \brief a lua code to create a NN module for an op.
+ *  Only allows register normal module that takes one tensor and returns one tensor.
+ *
+ *  Signature:
+ *  function(ishape, kwarg)
+ *  - ishape: array of array, shape of input arguments, including weights
+ *  - kwarg: table: str->str, additional arguments to the op.
+ *  - return: a nn.Module for corresponding op.
+ *
+ * \note Register as FLuaCreateNNModule,
+ *  either FLuaCreateNNModule or FLuaCompute is needed.
+ */
+using FLuaCreateNNModule = std::string;
 
 /*! \brief Executor of a graph */
 class Session {

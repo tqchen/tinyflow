@@ -21,12 +21,12 @@ DMLC_REGISTER_PARAMETER(ShapeParam);
 
 using namespace nnvm;
 
-const FLuaComputeCode kLuaNOP = "function(x, y) end";
+const FLuaCompute kLuaNOP = "function(x, y) end";
 
 NNVM_REGISTER_OP(placeholder)
 .describe("placeholder op")
 .set_num_inputs(0)
-.set_attr<FLuaComputeCode>("FLuaComputeCode", kLuaNOP);
+.set_attr<FLuaCompute>("FLuaCompute", kLuaNOP);
 
 
 NNVM_REGISTER_OP(assign)
@@ -37,8 +37,8 @@ NNVM_REGISTER_OP(assign)
   })
 .set_attr<FInferShape>("FInferShape", SameShape)
 .set_attr<FInplaceOption>("FInplaceOption", InplaceIn1Out0)
-.set_attr<FLuaComputeCode>(
-    "FLuaComputeCode", R"(
+.set_attr<FLuaCompute>(
+    "FLuaCompute", R"(
 function(x, y)
   x[1]:copy(x[2])
   -- normally inplace optimization prevent this
@@ -60,8 +60,8 @@ NNVM_REGISTER_OP(zeros)
 .set_num_inputs(0)
 .set_attr_parser(ParamParser<ShapeParam>)
 .set_attr<FInferShape>("FInferShape", ZeroShape)
-.set_attr<FLuaComputeCode>(
-    "FLuaComputeCode", R"(
+.set_attr<FLuaCompute>(
+    "FLuaCompute", R"(
 function(x, y)
   y[1]:fill(0)
 end
@@ -78,8 +78,8 @@ NNVM_REGISTER_OP(__add_symbol__)
                     const std::vector<NodeEntry>& ograds){
       return std::vector<NodeEntry>{ograds[0], ograds[0]};
     })
-.set_attr<FLuaComputeCode>(
-    "FLuaComputeCode", R"(
+.set_attr<FLuaCompute>(
+    "FLuaCompute", R"(
 function(x, y)
   torch.add(y[1], x[1], x[2])
 end
@@ -91,8 +91,8 @@ NNVM_REGISTER_OP(__mul_symbol__)
 .set_num_inputs(2)
 .set_attr<FInferShape>("FInferShape", SameShape)
 .set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
-.set_attr<FLuaComputeCode>(
-    "FLuaComputeCode", R"(
+.set_attr<FLuaCompute>(
+    "FLuaCompute", R"(
 function(x, y)
   torch.cmul(y[1], x[1], x[2])
 end

@@ -22,5 +22,13 @@ def test_assign():
     sess.run(tf.assign(x, tf.zeros(shape=[2,3])))
     print sess.run(x)
 
+def test_softmax():
+    x = tf.placeholder(tf.float32)
+    y = tf.nn.softmax(x)
+    ax = np.ones((2, 3))
+    sess = tf.Session()
+    ay = sess.run(y, feed_dict={x:ax})
+    print ay
+
 if __name__ == "__main__":
-    test_assign()
+    test_softmax()

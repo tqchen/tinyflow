@@ -115,6 +115,8 @@ class TorchExecutor {
   std::vector<LuaRef> storage_pool_;
   // operator executor closures
   std::vector<LuaRef> op_execs_;
+  // lua module states of each operator.
+  std::vector<LuaRef> op_exec_modules_;
   // The storage space to hold outputs.
   std::vector<LuaRef> outputs_;
   std::vector<TBlob> output_blobs_;
@@ -224,7 +226,11 @@ void TorchExecutor::Setup(const std::unordered_map<std::string, TBlob>& inputs) 
   bool need_redo_infer;
   SetupShapeDType(inputs, &need_redo_infer);
   if (need_redo_infer) SetupStorage();
-  if (op_execs_.size() == 0) SetupOpExecs();
+  if (need_redo_infer) {
+    op_execs_.clear();
+    op_exec_modules_.clear();
+    SetupOpExecs();
+  }
   {
     // copy inputs
     auto* th = TorchState::ThreadLocalState();
@@ -367,17 +373,125 @@ void TorchExecutor::SetupStorage() {
 }
 
 void TorchExecutor::SetupOpExecs() {
-  const auto& lua_compute_code =
-      nnvm::Op::GetAttr<FLuaComputeCode>("FLuaComputeCode");
   auto* lua = LuaState::ThreadLocalState();
-  LuaRef fcreate_exec_closure = lua->Eval(R"(
+  const auto& idx = graph_.indexed_graph();
+  const auto& lua_create_module =
+      nnvm::Op::GetAttr<FLuaCreateNNModule>("FLuaCreateNNModule");
+  const auto& lua_compute_code =
+      nnvm::Op::GetAttr<FLuaCompute>("FLuaCompute");
+  LuaRef fcreate_fcompute_closure = lua->Eval(R"(
     return
     function(fcompute, ins, outs)
       return function() fcompute(ins, outs) end
     end
   )");
-  // get the graph
-  const auto& idx = graph_.indexed_graph();
+  LuaRef fremove_module_storage = lua->Eval(R"(
+    return
+    function(m, dev_mask)
+      local W, gW = m:parameters()
+      if W ~= nil then
+        local empty = torch.FloatTensor()
+        if dev_mask == 2 then
+          m = m:cuda()
+          empty = empty:cuda()
+        end
+        for i, t in ipairs(W) do
+          t:set(empty)
+        end
+        for i, t in ipairs(gW) do
+          t:set(empty)
+        end
+      end
+      return m
+    end
+  )");
+  LuaRef fcreate_nnforward_closure = lua->Eval(R"(
+    return
+    function(m, input, output, weight)
+      local W, gW = m:parameters()
+      local setW = function() end
+      if W ~= nil then
+        setW = function()
+          local W, gW = m:parameters()
+          for i, t in ipairs(W) do
+            t:set(weight[i])
+          end
+        end
+      end
+      return function()
+        setW()
+        m.output:set(output)
+        m:updateOutput(input)
+        if not m.output:isSetTo(output) then
+          output:copy(m.output)
+          m.output:set(output)
+        end
+      end
+    end
+  )");
+  LuaRef fcreate_nnbackward_closure = lua->Eval(R"(
+    return
+    function(m, input, output, weight, gradInput, gradOutput, gradWeight)
+      local setW = function() end
+      local copyGradW = function() end
+      local W, gW = m:parameters()
+      if W ~= nil then
+        setW = function()
+          local W, gW = m:parameters()
+          if W ~= nil then
+            for i, t in ipairs(W) do
+              t:set(weight[i])
+            end
+            for i, t in ipairs(gW) do
+              t:set(gradWeight[i])
+            end
+          end
+        end
+        copyGradW = function()
+          local W, gW = m:parameters()
+          for i, t in ipairs(gW) do
+            if not t:isSetTo(gradWeight[i]) then
+              gradWeight[i]:copy(t)
+              t:set(gradWeight)
+            end
+          end
+        end
+      end
+
+      return function()
+        setW()
+        m.output:set(output)
+        m.gradInput:set(gradInput)
+        m:zeroGradParameters()
+        m:accGradParameters(input, gradOutput, 1)
+        m:updateGradInput(input, gradOutput)
+        if not m.gradInput.isSetTo(gradInput) then
+          gradInput:copy(m.gradInput)
+          m.gradInput:set(gradInput)
+        end
+        copyGradW()
+      end
+    end
+  )");
+
+  op_exec_modules_.resize(idx.num_nodes());
+  // setup modules
+  // setup the array and requirements.
+  for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
+    const auto& inode = idx[nid];
+    if (inode.source->is_variable()) continue;
+    if (lua_create_module.count(inode.source->op())) {
+      std::string lua_str = "return " + lua_create_module[inode.source->op()];
+      LuaRef fcreate = lua->Eval(lua_str);
+      std::vector<TShape> ishape;
+      for (auto& e : inode.inputs) {
+        ishape.push_back(node_shape_->at(idx.entry_id(e)));
+      }
+      op_exec_modules_[nid] = fremove_module_storage(
+          fcreate(ishape, inode.source->attrs.dict), dev_mask_);
+    }
+  }
+  // setup execs closure
   op_execs_.resize(idx.num_nodes());
   // setup the array and requirements.
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
@@ -391,24 +505,23 @@ void TorchExecutor::SetupOpExecs() {
       uint32_t eid = idx.entry_id(nid, index);
       out_array.push_back(data_entry_[eid]);
     }
-    LuaRef fcompute;
     if (lua_compute_code.count(inode.source->op())) {
       std::string lua_str = "return " + lua_compute_code[inode.source->op()];
-      try {
-        fcompute = lua->Eval(lua_str);
-      } catch(dmlc::Error e) {
-        LOG(FATAL) << "Error during setuo FLuaComputeCode for "
-                   << inode.source->op()->name << "\nlua code\n----\n"
-                   << lua_str
-                   << "-----\n"
-                   << e.what();
+      LuaRef fcompute = lua->Eval(lua_str);
+      op_execs_[nid] = fcreate_fcompute_closure(
+          fcompute, in_array, out_array);
+    } else if (!op_exec_modules_[nid].is_nil()) {
+      std::vector<LuaRef> weights;
+      for (size_t i = 1; i < in_array.size(); ++i) {
+        weights.push_back(in_array[i]);
       }
+      op_execs_[nid] = fcreate_nnforward_closure(
+          op_exec_modules_[nid], in_array[0], out_array[0], weights);
+      CHECK_EQ(in_array.size(), 1) << "onnly support tensor nn module";
     } else {
       LOG(FATAL) << "Function FLuaCompute is not registered on "
                  << inode.source->op()->name;
     }
-    op_execs_[nid] = fcreate_exec_closure(
-        fcompute, in_array, out_array);
   }
 }
 

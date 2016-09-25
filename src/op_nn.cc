@@ -8,7 +8,14 @@ namespace tinyflow {
 
 NNVM_REGISTER_OP(softmax)
 .describe("Softmax operation")
-.set_num_inputs(1);
+.set_num_inputs(1)
+.set_attr<FLuaCreateNNModule>(
+    "FLuaCreateNNModule", R"(
+function(ishape, oshape, kwarg)
+  return nn.SoftMax()
+end
+)")
+.set_attr<FInferShape>("FInferShape", SameShape);
 
 NNVM_REGISTER_OP(bias_add)
 .describe("Add bias to data")

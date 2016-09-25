@@ -11,6 +11,24 @@
 #include <dmlc/thread_local.h>
 #include <vector>
 
+namespace dmlc {
+namespace lua_stack {
+// enable pass in TShape as arguments
+template<>
+struct Handler<nnvm::TShape> {
+  static inline nnvm::TShape Get(lua_State* L, int index, LuaState* s) {
+    std::vector<uint32_t> v = Handler<std::vector<uint32_t> >::Get(L, index, s);
+    return nnvm::TShape(v.begin(), v.end());
+  }
+  static inline void Push(lua_State* L, const nnvm::TShape& shape) {
+    std::vector<uint32_t> v(shape.begin(), shape.end());
+    Handler<std::vector<uint32_t> >::Push(L, v);
+  }
+};
+
+}  // namespace lua_stack
+}  // namespace dmlc
+
 namespace tinyflow {
 
 using dmlc::LuaRef;
@@ -22,6 +40,8 @@ class TorchState {
   TorchState() {
     auto* lua = LuaState::ThreadLocalState();
     lua->Eval("require 'torch'");
+    lua->Eval("require 'nn'");
+    lua->Eval("torch.setdefaulttensortype('torch.FloatTensor')");
   }
   // create a new storage with given size
   LuaRef NewStorage(size_t size, int dev_mask = kCPU, int dtype = 0) {
@@ -80,10 +100,9 @@ class TorchState {
       end
       )");
     }
-    std::vector<uint32_t> vshape(src.shape.begin(), src.shape.end());
     return ftensor_new_shared_(
         reinterpret_cast<intptr_t>(src.data),
-        vshape, src.shape.Size(), src.dev_mask);
+        src.shape, src.shape.Size(), src.dev_mask);
   }
   // copy from one tensor to another one
   void CopyFromTo(LuaRef from, LuaRef to) {
@@ -114,8 +133,7 @@ class TorchState {
       end
       )");
     }
-    std::vector<uint32_t> vshape(shape.begin(), shape.end());
-    ftensor_set_(tensor, storage, vshape);
+    ftensor_set_(tensor, storage, shape);
   }
   // Get the internal TBlob representation of
   // The tensor object must stay alive to keep the space valid.
@@ -142,9 +160,8 @@ class TorchState {
     }
     LuaRef temp = fget_internal_(tensor);
     TBlob ret;
-    auto vshape = temp[2].Get<std::vector<uint32_t> >();
     ret.data = reinterpret_cast<void*>(temp[1].Get<intptr_t>());
-    ret.shape = TShape(vshape.begin(), vshape.end());
+    ret.shape = temp[2].Get<TShape>();
     ret.dev_mask = temp[3].Get<int>();
     return ret;
   }
