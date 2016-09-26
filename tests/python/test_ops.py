@@ -35,6 +35,18 @@ def test_bias_add():
     np.testing.assert_almost_equal(
         ay, ax + ab)
 
+def test_matmul():
+    x = tf.placeholder(tf.float32)
+    y = tf.placeholder(tf.float32)
+    ax = np.ones((2, 3))
+    ay = np.ones((3, 4)) * 4
+    z = tf.matmul(x, y) * 4
+    sess = tf.Session()
+    az = sess.run(z, feed_dict={x:ax, y:ay})
+    np.testing.assert_almost_equal(
+        az, np.dot(ax, ay) * 4)
+
 
 if __name__ == "__main__":
+    test_matmul()
     pass

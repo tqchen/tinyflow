@@ -9,7 +9,7 @@ namespace tinyflow {
 using namespace nnvm;
 
 // create a backward node
-inline std::vector<NodeEntry> MakeBackwardNode(
+inline std::vector<NodeEntry> MakeNNBackwardNode(
     const NodePtr& n,
     const std::vector<NodeEntry>& ograds) {
   static auto& backward_need_inputs = Op::GetAttr<bool>("TBackwardNeedInputs");
@@ -18,7 +18,7 @@ inline std::vector<NodeEntry> MakeBackwardNode(
   p->attrs.op = nnvm::Op::Get("_backward");
   p->attrs.name = n->attrs.name + "_backward";
 
-  BackwardParam param;
+  NNBackwardParam param;
   param.forward_readonly_inputs = static_cast<uint32_t>(n->inputs.size());
   param.need_inputs = backward_need_inputs[n->op()];
   param.need_outputs = backward_need_outputs[n->op()];
@@ -59,7 +59,7 @@ inline std::vector<NodeEntry> MakeBackwardNode(
 
 // common attributes for nn module.
 NNVM_REGISTER_OP_GROUP(nn_module)
-.set_attr<FGradient>("FGradient", MakeBackwardNode)
+.set_attr<FGradient>("FGradient", MakeNNBackwardNode)
 .set_attr<bool>("TBackwardNeedInputs", true)
 .set_attr<bool>("TBackwardNeedOutputs", true);
 
@@ -83,11 +83,13 @@ NNVM_REGISTER_OP(bias_add)
 .set_num_inputs(2)
 .set_attr<FLuaCompute>(
     "FLuaCompute", R"(
-function(x, y)
+function(x, y, kwarg)
   local bias = x[2]
   local shape = torch.LongStorage(x[1]:size():size()):fill(1)
   shape[2] = x[1]:size()[2]
-  torch.add(y[1], x[1], bias:view(shape):expandAs(x[1]))
+  return function()
+    torch.add(y[1], x[1], bias:view(shape):expandAs(x[1]))
+  end
 end
 )")
 .set_attr<FInferShape>(

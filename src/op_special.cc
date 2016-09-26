@@ -9,7 +9,7 @@ namespace tinyflow {
 
 using namespace nnvm;
 
-const FLuaCompute kLuaNOP = "function(x, y) end";
+const FLuaCompute kLuaNOP = "function(x, y, kwarg) return function() end end";
 
 NNVM_REGISTER_OP(placeholder)
 .describe("placeholder op")
@@ -42,11 +42,13 @@ NNVM_REGISTER_OP(assign)
 .set_attr<FInplaceOption>("FInplaceOption", InplaceIn1Out0)
 .set_attr<FLuaCompute>(
     "FLuaCompute", R"(
-function(x, y)
-  x[1]:copy(x[2])
-  -- normally inplace optimization prevent this
-  if y[1]:storage() ~= x[2]:storage() then
-    y[1]:copy(x[2])
+function(x, y, kwarg)
+  return function()
+    x[1]:copy(x[2])
+    -- normally inplace optimization prevent this
+    if y[1]:storage() ~= x[2]:storage() then
+      y[1]:copy(x[2])
+    end
   end
 end
 )");
@@ -61,18 +63,18 @@ NNVM_REGISTER_OP(_no_gradient)
 NNVM_REGISTER_OP(_backward)
 .describe("backward operator of NN module")
 .set_num_outputs([] (const NodeAttrs& attrs) {
-  const BackwardParam& param = dmlc::get<BackwardParam>(attrs.parsed);
+  const NNBackwardParam& param = dmlc::get<NNBackwardParam>(attrs.parsed);
   return param.forward_readonly_inputs;
   })
 .set_num_inputs([] (const NodeAttrs& attrs) {
-  const BackwardParam& param = dmlc::get<BackwardParam>(attrs.parsed);
+  const NNBackwardParam& param = dmlc::get<NNBackwardParam>(attrs.parsed);
   uint32_t n = param.num_states + 1;
   if (param.need_inputs) n += param.forward_readonly_inputs;
   if (param.need_outputs) n += 1;
   return n;
   })
 .set_attr<nnvm::FBackwardOutToInIndex>("FBackwardOutToInIndex", [](const NodeAttrs& attrs) {
-  const BackwardParam& param = dmlc::get<BackwardParam>(attrs.parsed);
+  const NNBackwardParam& param = dmlc::get<NNBackwardParam>(attrs.parsed);
   std::vector<uint32_t> vec;
   for (uint32_t i = 0; i < param.forward_readonly_inputs; ++i) {
     vec.push_back(i);

@@ -385,12 +385,6 @@ void TorchExecutor::SetupOpExecs() {
       nnvm::Op::GetAttr<FLuaCreateNNModule>("FLuaCreateNNModule");
   const auto& lua_compute_code =
       nnvm::Op::GetAttr<FLuaCompute>("FLuaCompute");
-  LuaRef fcreate_fcompute_closure = lua->Eval(R"(
-    return
-    function(fcompute, ins, outs)
-      return function() fcompute(ins, outs) end
-    end
-  )");
   LuaRef fremove_module_storage = lua->Eval(R"(
     return
     function(m, dev_mask)
@@ -518,8 +512,8 @@ void TorchExecutor::SetupOpExecs() {
       // compute function
       std::string lua_str = "return " + lua_compute_code[inode.source->op()];
       LuaRef fcompute = lua->Eval(lua_str);
-      op_execs_[nid] = fcreate_fcompute_closure(
-          fcompute, in_array, out_array);
+      op_execs_[nid] = fcompute(
+          in_array, out_array, inode.source->attrs.dict);
     } else if (!op_exec_modules_[nid].is_nil()) {
       // nn module forward
       std::vector<LuaRef> weights;
@@ -532,8 +526,8 @@ void TorchExecutor::SetupOpExecs() {
     } else if (inode.source->op() == backward_op) {
       // nn module backward
       CHECK_GE(inode.control_deps.size(), 1);
-      const BackwardParam& param =
-          dmlc::get<BackwardParam>(inode.source->attrs.parsed);
+      const NNBackwardParam& param =
+          dmlc::get<NNBackwardParam>(inode.source->attrs.parsed);
       std::vector<LuaRef> weight, gradWeight;
       LuaRef gradInput, gradOutput, input, output;
       gradInput = out_array[0];

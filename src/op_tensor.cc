@@ -2,6 +2,7 @@
 // implementation of common tensor operators
 #include <tinyflow/base.h>
 #include <dmlc/parameter.h>
+#include <nnvm/op_attr_types.h>
 #include <utility>
 #include "./op_util.h"
 
@@ -49,8 +50,8 @@ NNVM_REGISTER_OP(zeros)
 .set_attr<FInferType>("FInferType", ZeroType)
 .set_attr<FLuaCompute>(
     "FLuaCompute", R"(
-function(x, y)
-  y[1]:fill(0)
+function(x, y, kwarg)
+  return function() y[1]:fill(0) end
 end
 )");
 
@@ -63,8 +64,10 @@ NNVM_REGISTER_OP(ones)
 .set_attr<FInferType>("FInferType", ZeroType)
 .set_attr<FLuaCompute>(
     "FLuaCompute", R"(
-function(x, y)
-  y[1]:fill(1)
+function(x, y, kwarg)
+  return function()
+    y[1]:fill(1)
+  end
 end
 )");
 
@@ -75,8 +78,10 @@ NNVM_REGISTER_OP(ones_like)
 .set_attr<FInferShape>("FInferShape", SameShape)
 .set_attr<FLuaCompute>(
     "FLuaCompute", R"(
-function(x, y)
-  y[1]:fill(1)
+function(x, y, kwarg)
+  return function()
+    y[1]:fill(1)
+  end
 end
 )");
 
@@ -93,21 +98,52 @@ NNVM_REGISTER_OP(__add_symbol__)
     })
 .set_attr<FLuaCompute>(
     "FLuaCompute", R"(
-function(x, y)
-  torch.add(y[1], x[1], x[2])
+function(x, y, kwarg)
+  return function()
+    torch.add(y[1], x[1], x[2])
+  end
 end
 )");
 
 
-NNVM_REGISTER_OP(__mul_symbol__)
+NNVM_REGISTER_OP(mul)
+.add_alias("__mul_symbol__")
 .describe("add two data together")
 .set_num_inputs(2)
 .set_attr<FInferShape>("FInferShape", SameShape)
 .set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
 .set_attr<FLuaCompute>(
     "FLuaCompute", R"(
-function(x, y)
-  torch.cmul(y[1], x[1], x[2])
+function(x, y, kwarg)
+  return function()
+    torch.cmul(y[1], x[1], x[2])
+  end
+end
+)")
+.set_attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds){
+      return std::vector<NodeEntry>{
+        MakeNode("mul", n->attrs.name + "_grad_0",
+                 {ograds[0], n->inputs[1]}),
+        MakeNode("mul", n->attrs.name + "_grad_1",
+                 {ograds[0], n->inputs[0]})
+            };
+    });
+
+
+NNVM_REGISTER_OP(div)
+.add_alias("__div_symbol__")
+.describe("do division")
+.set_num_inputs(2)
+.set_attr<FInferShape>("FInferShape", SameShape)
+.set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
+.set_attr<FLuaCompute>(
+    "FLuaCompute", R"(
+function(x, y, kwarg)
+  return function()
+    torch.cdiv(y[1], x[1], x[2])
+  end
 end
 )");
 
@@ -116,12 +152,109 @@ NNVM_REGISTER_OP(__mul_scalar__)
 .describe("Multiply symbol with scalar")
 .set_num_inputs(1)
 .set_attr<FInferShape>("FInferShape", SameShape)
-.set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0);
+.set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
+.set_attr<FLuaCompute>(
+    "FLuaCompute", R"(
+function(x, y, kwarg)
+  local scalar = tonumber(kwarg.scalar)
+  return function()
+    torch.mul(y[1], x[1], scalar)
+  end
+end
+)")
+.set_attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds){
+      return std::vector<NodeEntry>{
+        MakeNode("__mul_scalar__", n->attrs.name + "_grad_0",
+                 {ograds[0]}, {{"scalar", n->attrs.dict["scalar"]}}),
+            };
+    });
 
+NNVM_REGISTER_OP(log)
+.describe("take elemtnwise logarithm")
+.set_num_inputs(1)
+.set_attr<FInferShape>("FInferShape", SameShape)
+.set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
+.set_attr<FLuaCompute>(
+    "FLuaCompute", R"(
+function(x, y, kwarg)
+  return function()
+    torch.log(y[1], x[1])
+  end
+end
+)")
+.set_attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds) {
+      return std::vector<NodeEntry>{
+        MakeNode("__div_symbol__", n->attrs.name + "_grad_0",
+                 {ograds[0], n->inputs[0]})
+      };
+    });
 
 NNVM_REGISTER_OP(matmul)
 .describe("Matrix multiplication")
-.set_num_inputs(2);
+.set_num_inputs(2)
+.set_attr<FInferShape>(
+    "FInferShape", [](const NodeAttrs& attrs,
+                      std::vector<TShape> *ishape,
+                      std::vector<TShape> *oshape) {
+      if (ishape->at(0).ndim() == 0) return false;
+      if (ishape->at(1).ndim() == 0) return false;
+      CHECK_EQ(ishape->at(0).ndim(), 2);
+      CHECK_EQ(ishape->at(1).ndim(), 2);
+      CHECK_EQ(ishape->at(0)[1], ishape->at(1)[0]);
+      TShape target{ishape->at(0)[0], ishape->at(1)[1]};
+      SHAPE_ASSIGN(oshape->at(0), target);
+      return true;
+    })
+.set_attr<FLuaCompute>(
+    "FLuaCompute", R"(
+function(x, y, kwarg)
+  return function()
+    torch.mm(y[1], x[1], x[2])
+  end
+end
+)")
+.set_attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds) {
+      return MakeBackwardGrads("_matmul_backward", n,
+                               {ograds[0], n->inputs[0], n->inputs[1]});
+    });
+
+// simply register a bulk op for backward
+NNVM_REGISTER_OP(_matmul_backward)
+.set_num_inputs(3)
+.set_num_outputs(2)
+.set_attr<FLuaCompute>(
+    "FLuaCompute", R"(
+function(x, y, kwarg)
+  local gradOutput = x[1]
+  local lhs = x[2]
+  local rhs = x[3]
+  local gradLhs = y[1]
+  local gradRhs = y[2]
+  return function()
+    torch.mm(gradRhs, lhs:t(), gradOutput)
+    torch.mm(gradLhs, gradOutput, rhs:t())
+  end
+end
+)")
+.set_attr<FBackwardOutToInIndex>(
+    "FBackwardOutToInIndex", [](const NodeAttrs& attrs) {
+      return std::vector<uint32_t>{0, 1};
+    })
+.set_attr<FBackwardInGradIndex>(
+    "FBackwardInGradIndex", [](const NodeAttrs& attrs) {
+      return std::vector<uint32_t>{0};
+    })
+.set_attr<FInplaceOption>(
+    "FInplaceOption", [](const NodeAttrs& attrs) {
+      // lhs->gradLhs
+      return std::vector<std::pair<int, int> >{{1, 0}};
+    });
 
 
 NNVM_REGISTER_OP(reduce_mean)
@@ -134,7 +267,5 @@ NNVM_REGISTER_OP(reduce_sum)
 .set_num_inputs(1);
 
 
-NNVM_REGISTER_OP(log)
-.describe("take elemtnwise logarithm")
-.set_num_inputs(1);
+
 }  // namespace tinyflow

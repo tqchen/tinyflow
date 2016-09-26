@@ -45,13 +45,14 @@ struct TBlob {
 };
 
 /*!
- * \brief a lua function to carry out computation of an op.
+ * \brief a lua function to return closure to carry out computation of an op.
  *
  *  Signature:
- *  function(inputs, outputs)
+ *  function(inputs, outputs, kwarg)
  *  - inputs: array of input torch.FloatTensor
  *  - outputs: array of input torch.FloatTensor
- *  - return: no return value
+ *  - kwargs: additional table arguments passed from kwarg.
+ *  - return: a lua closure, with signature function() that carrys out the computation.
  *
  *  After this function, outputs content are set to be correct value.
  *  This function cannot change the storage of inputs and outputs.
