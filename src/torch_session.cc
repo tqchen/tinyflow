@@ -192,7 +192,7 @@ void TorchExecutor::Init(nnvm::Symbol symbol, VarStateMap* states) {
         placeholder_nids_.push_back(nid);
       } else if (inode.source->op() == assign_op) {
         CHECK_EQ(inode.inputs.size(), 2);
-        ++read_count[inode.inputs[0].node_id];
+        ++read_count[inode.inputs[1].node_id];
         ++assign_count[inode.inputs[0].node_id];
       } else {
         for (auto e : inode.inputs) {
@@ -290,8 +290,11 @@ void TorchExecutor::SetupShapeDType(
   DTypeVector new_dtype(idx.num_node_entries(), -1);
 
   for (uint32_t nid : read_var_nids_) {
-    new_shape[idx.entry_id(nid, 0)] = node_states_[nid]->blob.shape;
-    new_dtype[idx.entry_id(nid, 0)] = node_states_[nid]->blob.dtype;
+    VarState* state = node_states_[nid];
+    CHECK(state->initialized())
+        << "Attempt to execute a graph un-initialized Variable";
+    new_shape[idx.entry_id(nid, 0)] = state->blob.shape;
+    new_dtype[idx.entry_id(nid, 0)] = state->blob.dtype;
   }
   for (uint32_t nid : placeholder_nids_) {
     const std::string& key = idx[nid].source->attrs.name;

@@ -57,8 +57,10 @@ class Session(object):
             size = 1
             for s in shape:
                 size *= s
-            cptr = out_dptr[i]
-            dbuffer = (nn_float * size).from_address(_ctypes.addressof(cptr.contents))
-            nd = np.frombuffer(dbuffer, dtype=np.float32).reshape(shape).copy()
-            ret.append(nd)
+
+            if size != 0 and shape:
+                cptr = out_dptr[i]
+                dbuffer = (nn_float * size).from_address(_ctypes.addressof(cptr.contents))
+                nd = np.frombuffer(dbuffer, dtype=np.float32).reshape(shape).copy()
+                ret.append(nd)
         return ret[0] if len(ret) == 1 else ret

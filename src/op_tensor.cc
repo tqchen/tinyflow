@@ -8,33 +8,45 @@
 namespace tinyflow {
 
 // shape parameter for zeros, ones
-struct ShapeParam : public dmlc::Parameter<ShapeParam> {
+struct ZeroParam : public dmlc::Parameter<ZeroParam> {
   TShape shape;
-  DMLC_DECLARE_PARAMETER(ShapeParam) {
+  int dtype;
+  DMLC_DECLARE_PARAMETER(ZeroParam) {
     DMLC_DECLARE_FIELD(shape).set_default(TShape());
+    DMLC_DECLARE_FIELD(dtype).set_default(kFloat32);
   }
 };
-DMLC_REGISTER_PARAMETER(ShapeParam);
+DMLC_REGISTER_PARAMETER(ZeroParam);
 
-// shape given the ShapeParam
+// shape given the ZeroParam
 using namespace nnvm;
 
 inline bool ZeroShape(const NodeAttrs& attrs,
                        std::vector<TShape> *ishape,
                        std::vector<TShape> *oshape) {
-  const TShape& ts = dmlc::get<ShapeParam>(attrs.parsed).shape;
+  const TShape& ts = dmlc::get<ZeroParam>(attrs.parsed).shape;
   if (ts.ndim() != 0) {
-    oshape->at(0) = ts; return true;
+    SHAPE_ASSIGN(oshape->at(0), ts);
+    return true;
   } else {
     return false;
   }
 }
 
+inline bool ZeroType(const NodeAttrs& attrs,
+                     std::vector<int> *iattr,
+                     std::vector<int> *oattr) {
+  int dtype = dmlc::get<ZeroParam>(attrs.parsed).dtype;
+  DTYPE_ASSIGN(oattr->at(0), dtype);
+  return true;
+}
+
 NNVM_REGISTER_OP(zeros)
 .describe("zeros")
 .set_num_inputs(0)
-.set_attr_parser(ParamParser<ShapeParam>)
+.set_attr_parser(ParamParser<ZeroParam>)
 .set_attr<FInferShape>("FInferShape", ZeroShape)
+.set_attr<FInferType>("FInferType", ZeroType)
 .set_attr<FLuaCompute>(
     "FLuaCompute", R"(
 function(x, y)
@@ -46,8 +58,21 @@ end
 NNVM_REGISTER_OP(ones)
 .describe("ones")
 .set_num_inputs(0)
-.set_attr_parser(ParamParser<ShapeParam>)
+.set_attr_parser(ParamParser<ZeroParam>)
 .set_attr<FInferShape>("FInferShape", ZeroShape)
+.set_attr<FInferType>("FInferType", ZeroType)
+.set_attr<FLuaCompute>(
+    "FLuaCompute", R"(
+function(x, y)
+  y[1]:fill(1)
+end
+)");
+
+
+NNVM_REGISTER_OP(ones_like)
+.describe("ones_like")
+.set_num_inputs(1)
+.set_attr<FInferShape>("FInferShape", SameShape)
 .set_attr<FLuaCompute>(
     "FLuaCompute", R"(
 function(x, y)

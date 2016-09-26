@@ -16,6 +16,17 @@ namespace tinyflow {
 
 using namespace nnvm;
 
+#define SHAPE_ASSIGN(lhs, rhs)                                \
+  if ((lhs).ndim() == 0) (lhs) = (rhs);                       \
+  else                                                        \
+    CHECK_EQ(lhs, rhs) << "shape inference inconsistent";     \
+
+#define DTYPE_ASSIGN(lhs, rhs)                                \
+  if ((lhs) == -1) (lhs) = (rhs);                             \
+  else                                                        \
+    CHECK_EQ(lhs, rhs) << "shape inference inconsistent";     \
+
+
 // simply return the shape as same
 inline bool SameShape(const NodeAttrs& attrs,
                       std::vector<TShape> *ishape,
@@ -36,16 +47,10 @@ inline bool SameShape(const NodeAttrs& attrs,
   if (def_v.ndim() == 0) return false;
 
   for (TShape& pshape : *oshape) {
-    if (pshape.ndim() != 0) {
-      CHECK_EQ(pshape, def_v) << "inconsistent shape";
-    }
-    pshape = def_v;
+    SHAPE_ASSIGN(pshape, def_v);
   }
   for (TShape& pshape : *ishape) {
-    if (pshape.ndim() != 0) {
-      CHECK_EQ(pshape, def_v) << "inconsistent shape";
-    }
-    pshape = def_v;
+    SHAPE_ASSIGN(pshape, def_v);
   }
   return true;
 }

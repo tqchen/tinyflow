@@ -1,6 +1,7 @@
 // Copyright (c) 2016 by Contributors
 // implementation of common nn operators
 #include <tinyflow/base.h>
+#include <nnvm/op_attr_types.h>
 #include <utility>
 #include "./op_util.h"
 
@@ -14,6 +15,22 @@ NNVM_REGISTER_OP(placeholder)
 .describe("placeholder op")
 .set_num_inputs(0)
 .set_attr<FLuaCompute>("FLuaCompute", kLuaNOP);
+
+template<typename Attr>
+inline bool EmptyAttr(const NodeAttrs& attrs,
+                      std::vector<Attr> *ishape,
+                      std::vector<Attr> *oshape) {
+  oshape->at(0) = Attr{0}; return true;
+}
+
+NNVM_REGISTER_OP(_nop)
+.describe("no operation")
+.set_num_inputs(0)
+.set_num_outputs(1)
+.set_attr<FLuaCompute>("FLuaCompute", kLuaNOP)
+.set_attr<FInferShape>("FInferShape", EmptyAttr<TShape>)
+.set_attr<FInferType>("FInferType", EmptyAttr<int>);
+
 
 NNVM_REGISTER_OP(assign)
 .describe("assign second to the first")

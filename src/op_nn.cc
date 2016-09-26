@@ -76,4 +76,32 @@ end
 )")
 .set_attr<FInferShape>("FInferShape", SameShape);
 
+
+// add bias to channel
+NNVM_REGISTER_OP(bias_add)
+.describe("Add bias to dimension 1: channel")
+.set_num_inputs(2)
+.set_attr<FLuaCompute>(
+    "FLuaCompute", R"(
+function(x, y)
+  local bias = x[2]
+  local shape = torch.LongStorage(x[1]:size():size()):fill(1)
+  shape[2] = x[1]:size()[2]
+  torch.add(y[1], x[1], bias:view(shape):expandAs(x[1]))
+end
+)")
+.set_attr<FInferShape>(
+    "FInferShape", [] (const NodeAttrs& attrs,
+                       std::vector<TShape> *ishape,
+                       std::vector<TShape> *oshape) {
+      TShape t;
+      if (ishape->at(0).ndim() != 0) t = ishape->at(0);
+      if (oshape->at(0).ndim() != 0) t = oshape->at(0);
+      if (t.ndim() == 0) return false;
+      ishape->at(0) = t;
+      oshape->at(0) = t;
+      ishape->at(1) = TShape{t[1]};
+      return true;
+    });
+
 }  // namespace tinyflow
