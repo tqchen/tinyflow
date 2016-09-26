@@ -66,6 +66,18 @@ inline void ParamParser(nnvm::NodeAttrs* attrs) {
   attrs->parsed = std::move(param);
 }
 
+// special parameter stored in backward node.
+struct BackwardParam {
+  // total number of inputs in forward op
+  uint32_t forward_readonly_inputs;
+  // number of internal states in the op
+  uint32_t num_states{0};
+  // whether backward need all te inputs.
+  bool need_inputs;
+  // whether backward need all the outputs.
+  bool need_outputs;
+};
+
 }  // namespace tinyflow
 
 #endif  // TINYFLOW_OP_UTIL_H_

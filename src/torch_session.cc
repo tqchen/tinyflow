@@ -4,6 +4,7 @@
 
 #include <memory>
 #include "./torch_util.h"
+#include "./op_util.h"
 
 namespace tinyflow {
 
@@ -373,6 +374,8 @@ void TorchExecutor::SetupStorage() {
 }
 
 void TorchExecutor::SetupOpExecs() {
+  // a slightly big function to setup execution functors
+  // We can separate some logics into a new pass later.
   auto* lua = LuaState::ThreadLocalState();
   const auto& idx = graph_.indexed_graph();
   const auto& lua_create_module =
@@ -475,7 +478,7 @@ void TorchExecutor::SetupOpExecs() {
   )");
 
   op_exec_modules_.resize(idx.num_nodes());
-  // setup modules
+  // setup torch.nn modules when available.
   // setup the array and requirements.
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
@@ -491,7 +494,9 @@ void TorchExecutor::SetupOpExecs() {
           fcreate(ishape, inode.source->attrs.dict), dev_mask_);
     }
   }
-  // setup execs closure
+
+  // setup executor closure
+  const Op* backward_op = Op::Get("_backward");
   op_execs_.resize(idx.num_nodes());
   // setup the array and requirements.
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
@@ -505,19 +510,52 @@ void TorchExecutor::SetupOpExecs() {
       uint32_t eid = idx.entry_id(nid, index);
       out_array.push_back(data_entry_[eid]);
     }
+
     if (lua_compute_code.count(inode.source->op())) {
+      // compute function
       std::string lua_str = "return " + lua_compute_code[inode.source->op()];
       LuaRef fcompute = lua->Eval(lua_str);
       op_execs_[nid] = fcreate_fcompute_closure(
           fcompute, in_array, out_array);
     } else if (!op_exec_modules_[nid].is_nil()) {
+      // nn module forward
       std::vector<LuaRef> weights;
       for (size_t i = 1; i < in_array.size(); ++i) {
         weights.push_back(in_array[i]);
       }
       op_execs_[nid] = fcreate_nnforward_closure(
           op_exec_modules_[nid], in_array[0], out_array[0], weights);
-      CHECK_EQ(in_array.size(), 1) << "onnly support tensor nn module";
+      CHECK_EQ(out_array.size(), 1) << "onnly support tensor nn module";
+    } else if (inode.source->op() == backward_op) {
+      // nn module backward
+      CHECK_GE(inode.control_deps.size(), 1);
+      const BackwardParam& param =
+          dmlc::get<BackwardParam>(inode.source->attrs.parsed);
+      std::vector<LuaRef> weight, gradWeight;
+      LuaRef gradInput, gradOutput, input, output;
+      gradInput = out_array[0];
+      for (size_t i = 1; i < out_array.size(); ++i) {
+        gradWeight.push_back(out_array[i]);
+      }
+      gradOutput = in_array[0];
+      // set the non-needed to be empty tensor.
+      size_t in_ptr = 1;
+      if (param.need_inputs) {
+        input = in_array[in_ptr];
+        for (size_t i = 1; i < param.forward_readonly_inputs; ++i) {
+          weight.push_back(in_array[i + in_ptr]);
+        }
+        in_ptr += param.forward_readonly_inputs;
+      } else {
+        weight.resize(param.forward_readonly_inputs);
+      }
+      CHECK_EQ(param.num_states, 0);
+      if (param.need_outputs) {
+        output = in_array[in_ptr];
+      }
+      op_execs_[nid] = fcreate_nnbackward_closure(
+          op_exec_modules_[inode.control_deps[0]],
+          input, output, weight, gradInput, gradOutput, gradWeight);
     } else {
       LOG(FATAL) << "Function FLuaCompute is not registered on "
                  << inode.source->op()->name;

@@ -11,48 +11,23 @@ namespace tinyflow {
 struct ShapeParam : public dmlc::Parameter<ShapeParam> {
   TShape shape;
   DMLC_DECLARE_PARAMETER(ShapeParam) {
-    DMLC_DECLARE_FIELD(shape);
+    DMLC_DECLARE_FIELD(shape).set_default(TShape());
   }
 };
 DMLC_REGISTER_PARAMETER(ShapeParam);
 
 // shape given the ShapeParam
-
-
 using namespace nnvm;
-
-const FLuaCompute kLuaNOP = "function(x, y) end";
-
-NNVM_REGISTER_OP(placeholder)
-.describe("placeholder op")
-.set_num_inputs(0)
-.set_attr<FLuaCompute>("FLuaCompute", kLuaNOP);
-
-
-NNVM_REGISTER_OP(assign)
-.describe("assign second to the first")
-.set_num_inputs(2)
-.set_attr<FMutateInputs>("FMutateInputs", [](const NodeAttrs& attrs) {
-    return std::vector<uint32_t>{0};
-  })
-.set_attr<FInferShape>("FInferShape", SameShape)
-.set_attr<FInplaceOption>("FInplaceOption", InplaceIn1Out0)
-.set_attr<FLuaCompute>(
-    "FLuaCompute", R"(
-function(x, y)
-  x[1]:copy(x[2])
-  -- normally inplace optimization prevent this
-  if y[1]:storage() ~= x[2]:storage() then
-    y[1]:copy(x[2])
-  end
-end
-)");
 
 inline bool ZeroShape(const NodeAttrs& attrs,
                        std::vector<TShape> *ishape,
                        std::vector<TShape> *oshape) {
-  oshape->at(0) = dmlc::get<ShapeParam>(attrs.parsed).shape;
-  return true;
+  const TShape& ts = dmlc::get<ShapeParam>(attrs.parsed).shape;
+  if (ts.ndim() != 0) {
+    oshape->at(0) = ts; return true;
+  } else {
+    return false;
+  }
 }
 
 NNVM_REGISTER_OP(zeros)
@@ -64,6 +39,19 @@ NNVM_REGISTER_OP(zeros)
     "FLuaCompute", R"(
 function(x, y)
   y[1]:fill(0)
+end
+)");
+
+
+NNVM_REGISTER_OP(ones)
+.describe("ones")
+.set_num_inputs(0)
+.set_attr_parser(ParamParser<ShapeParam>)
+.set_attr<FInferShape>("FInferShape", ZeroShape)
+.set_attr<FLuaCompute>(
+    "FLuaCompute", R"(
+function(x, y)
+  y[1]:fill(1)
 end
 )");
 
@@ -122,6 +110,6 @@ NNVM_REGISTER_OP(reduce_sum)
 
 
 NNVM_REGISTER_OP(log)
-.describe("reduce mean")
+.describe("take elemtnwise logarithm")
 .set_num_inputs(1);
 }  // namespace tinyflow

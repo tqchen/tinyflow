@@ -74,6 +74,18 @@ using FLuaCompute = std::string;
  */
 using FLuaCreateNNModule = std::string;
 
+/*!
+ * \brief Whether backward need weight.
+ * \note Register as TNNBackwardNeedInputs
+ */
+using TBackwardNeedInputs = bool;
+
+/*!
+ * \brief Whether backward op need outputs.
+ * \note Register as TNNBackwardNeedOutputs
+ */
+using TBackwardNeedOutputs = bool;
+
 /*! \brief Executor of a graph */
 class Session {
  public:
