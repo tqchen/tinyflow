@@ -53,6 +53,16 @@ class TorchState {
     )");
     lua->SetGlobalField("nn_parse_tuple", parse_tuple);
   }
+  // prepare for GPU ops
+  inline void InitGPU() {
+    if (gpu_init_) return;
+    LOG(INFO) << "start to initialize ...";
+    auto* lua = LuaState::ThreadLocalState();
+    lua->Eval("require 'cutorch'");
+    lua->Eval("require 'cunn'");
+    LOG(INFO) << "finished gpu initialization...";
+    gpu_init_ = true;
+  }
   // create a new storage with given size
   LuaRef NewStorage(size_t size, int dev_mask = kCPU, int dtype = 0) {
     CHECK_EQ(dtype, 0) << "only float is supported so far";
@@ -181,6 +191,7 @@ class TorchState {
   }
 
  private:
+  bool gpu_init_{false};
   LuaRef fstorage_new_;
   LuaRef ftensor_new_;
   LuaRef ftensor_new_shared_;

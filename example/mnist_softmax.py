@@ -1,5 +1,8 @@
+"""Tinyflow example code.
+
+This code is adapted from Tensorflow's MNIST Tutorial with minimum code changes.
+"""
 import tinyflow as tf
-import numpy as np
 from tinyflow.datasets import get_mnist
 
 # Create the model

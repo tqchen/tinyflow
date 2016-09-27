@@ -96,7 +96,7 @@ class TorchExecutor {
   // ----------------------------
   // node auxiliary data structures
   // The device of this executor
-  int dev_mask_{kCPU};
+  int dev_mask_{kGPU};
   // node id of place holder ops
   std::vector<uint32_t> placeholder_nids_;
   // size of number of node, placeholder_tblobs_[nid].data != nullptr
@@ -164,6 +164,7 @@ const std::vector<TBlob>& TorchSession::Run(
 }
 
 void TorchExecutor::Init(nnvm::Symbol symbol, VarStateMap* states) {
+  if (dev_mask_ == kGPU) TorchState::ThreadLocalState()->InitGPU();
   graph_.outputs = symbol.outputs;
   symbol_ = std::move(symbol);
   // initialize all node auxiliary data structures.
@@ -401,13 +402,13 @@ void TorchExecutor::SetupOpExecs() {
   LuaRef fremove_module_storage = lua->Eval(R"(
     return
     function(m, dev_mask)
+      local empty = torch.FloatTensor()
+      if dev_mask == 2 then
+        m = m:cuda()
+        empty = empty:cuda()
+      end
       local W, gW = m:parameters()
       if W ~= nil then
-        local empty = torch.FloatTensor()
-        if dev_mask == 2 then
-          m = m:cuda()
-          empty = empty:cuda()
-        end
         for i, t in ipairs(W) do
           t:set(empty)
         end

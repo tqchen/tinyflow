@@ -459,7 +459,7 @@ function(x, y, kwarg)
   local axis = nn_parse_tuple(kwarg.reduction_indices)
   return function()
     local mx, ind = torch.max(rhs, axis[1] + 1)
-    torch.add(lhs, ind:float(), -1)
+    torch.add(lhs, ind:typeAs(lhs), -1)
   end
 end
 )");
