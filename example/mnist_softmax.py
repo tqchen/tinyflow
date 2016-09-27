@@ -17,7 +17,7 @@ y_ = tf.placeholder(tf.float32, [None, 10])
 cross_entropy = tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(y), reduction_indices=[1]))
 train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
 
-sess = tf.Session()
+sess = tf.Session(device='gpu')
 sess.run(tf.initialize_all_variables())
 
 # get the mnist dataset

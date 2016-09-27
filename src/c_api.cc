@@ -29,6 +29,8 @@ struct TinyAPIThreadLocalEntry {
   /*! \brief result holder for returning handles */
   std::vector<const float*> floatp;
   /*! \brief result holder for returning handles */
+  std::vector<nn_uint> dtype;
+  /*! \brief result holder for returning handles */
   std::vector<nn_uint> shape_ndim;
   /*! \brief result holder for returning handles */
   std::vector<const nn_uint*> shape_data;
@@ -36,9 +38,9 @@ struct TinyAPIThreadLocalEntry {
 
 using namespace tinyflow;
 
-int NNSessionCreate(SessionHandle* handle) {
+int NNSessionCreate(SessionHandle* handle, const char* option) {
   API_BEGIN();
-  *handle = Session::Create("torch");
+  *handle = Session::Create(option);
   API_END();
 }
 
@@ -58,6 +60,7 @@ int NNSessionRun(SessionHandle handle,
                  const nn_uint* feed_shape_data,
                  nn_uint* num_out,
                  const float*** out_dptr,
+                 const nn_uint** out_dtype,
                  const nn_uint** out_shape_ndim,
                  const nn_uint*** out_shape_data) {
   API_BEGIN();
@@ -77,15 +80,18 @@ int NNSessionRun(SessionHandle handle,
   *num_out = static_cast<nn_uint>(out.size());
   auto* ret = dmlc::ThreadLocalStore<TinyAPIThreadLocalEntry>::Get();
   ret->floatp.resize(out.size());
+  ret->dtype.resize(out.size());
   ret->shape_ndim.resize(out.size());
   ret->shape_data.resize(out.size());
 
   for (size_t i = 0; i < out.size(); ++i) {
     ret->floatp[i] = static_cast<const float*>(out[i].data);
+    ret->dtype[i] = out[i].dtype;
     ret->shape_ndim[i] = out[i].shape.ndim();
     ret->shape_data[i] = out[i].shape.data();
   }
   *out_dptr = dmlc::BeginPtr(ret->floatp);
+  *out_dtype = dmlc::BeginPtr(ret->dtype);
   *out_shape_ndim = dmlc::BeginPtr(ret->shape_ndim);
   *out_shape_data = dmlc::BeginPtr(ret->shape_data);
   API_END();

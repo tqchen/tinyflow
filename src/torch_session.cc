@@ -51,6 +51,12 @@ using VarStateMap = std::unordered_map<std::string, std::shared_ptr<VarState> >;
 // torch session.
 class TorchSession : public Session {
  public:
+  // simple session that binds to one device.
+  explicit TorchSession(const std::string& default_device) {
+    if (default_device.find("gpu") != std::string::npos) {
+      default_dev_mask_ = kGPU;
+    }
+  }
   const std::vector<TBlob>&
   Run(nnvm::Symbol* sym,
       const std::unordered_map<std::string, TBlob>& inputs) override;
@@ -61,6 +67,7 @@ class TorchSession : public Session {
     std::shared_ptr<TorchExecutor> exec;
     size_t use_count{0};
   };
+  int default_dev_mask_{kCPU};
   // local cached variable states.
   VarStateMap states_;
   // cached executor
@@ -72,7 +79,7 @@ class TorchExecutor {
  public:
   // initialize the executor
   // possibly update the states.
-  void Init(nnvm::Symbol symbol, VarStateMap* states);
+  void Init(nnvm::Symbol symbol, VarStateMap* states, int default_dev_mask);
   /// run the executor, return the outputs.
   const std::vector<TBlob>& Run(const std::unordered_map<std::string, TBlob>& inputs);
   // return corresponding internal symbol
@@ -126,8 +133,8 @@ class TorchExecutor {
   std::vector<TBlob> output_blobs_;
 };
 
-Session* Session::Create(const std::string& type) {
-  return new TorchSession();
+Session* Session::Create(const std::string& option) {
+  return new TorchSession(option);
 }
 
 const std::vector<TBlob>& TorchSession::Run(
@@ -158,12 +165,15 @@ const std::vector<TBlob>& TorchSession::Run(
   cached_execs_.clear();
   ExecEntry e;
   e.exec = std::make_shared<TorchExecutor>();
-  e.exec->Init(*sym, &states_);
+  e.exec->Init(*sym, &states_, default_dev_mask_);
   cached_execs_[sym] = e;
   return e.exec->Run(inputs);
 }
 
-void TorchExecutor::Init(nnvm::Symbol symbol, VarStateMap* states) {
+void TorchExecutor::Init(nnvm::Symbol symbol,
+                         VarStateMap* states,
+                         int default_dev_mask) {
+  dev_mask_ = default_dev_mask;
   if (dev_mask_ == kGPU) TorchState::ThreadLocalState()->InitGPU();
   graph_.outputs = symbol.outputs;
   symbol_ = std::move(symbol);
