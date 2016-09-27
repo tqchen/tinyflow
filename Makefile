@@ -1,11 +1,11 @@
+TORCH_PATH=${TORCH_HOME}
+
 ROOTDIR = $(CURDIR)
 
 
 ifndef NNVM_PATH
 	NNVM_PATH = $(ROOTDIR)/nnvm
 endif
-
-TORCH_PATH=${TORCH_HOME}
 
 export LDFLAGS = -pthread -lm
 export CFLAGS =  -std=c++11 -Wall -O2 -msse2  -Wno-unknown-pragmas -funroll-loops\
@@ -34,6 +34,8 @@ CUOBJ = $(patsubst %.cu, build/%_gpu.o, $(CUSRC))
 LIB_DEP = $(NNVM_PATH)/lib/libnnvm.a
 ALL_DEP = $(OBJ) $(LIB_DEP)
 
+all: lib/libtinyflow.sox
+
 build/src/%.o: src/%.cc
 	@mkdir -p $(@D)
 	$(CXX) -std=c++11 $(CFLAGS) -MM -MT build/src/$*.o $< >build/src/$*.d
@@ -48,6 +50,9 @@ lib/libtinyflow.so: $(ALL_DEP)
 	@mkdir -p $(@D)
 	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o, $^) $(LDFLAGS) \
 	-Wl,${WHOLE_ARCH} $(filter %.a, $^) -Wl,${NO_WHOLE_ARCH}
+
+$(NNVM_PATH)/lib/libnnvm.a:
+	+ cd $(NNVM_PATH); make lib/libnnvm.a; cd $(ROOTDIR)
 
 lint:
 	python2 dmlc-core/scripts/lint.py tinyflow cpp include src
