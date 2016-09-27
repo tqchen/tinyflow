@@ -86,7 +86,7 @@ function(x, y, kwarg)
   local bias = x[2]
   local shape = torch.LongStorage(x[1]:size():size()):fill(1)
   shape[2] = x[1]:size()[2]
-  bias = bias:view(shape):expandAs(x[1]))
+  bias = bias:view(shape):expandAs(x[1])
   return function()
     torch.add(y[1], x[1], bias)
   end

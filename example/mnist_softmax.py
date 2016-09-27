@@ -20,14 +20,11 @@ sess.run(tf.initialize_all_variables())
 # get the mnist dataset
 mnist = get_mnist(flatten=True, onehot=True)
 
-nstep = 100
-for i in range(nstep):
+for i in range(1000):
     batch_xs, batch_ys = mnist.train.next_batch(100)
-    loss, _ = sess.run([cross_entropy, train_step], feed_dict={x: batch_xs, y_: batch_ys})
+    sess.run(train_step, feed_dict={x: batch_xs, y_:batch_ys})
 
-correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
+correct_prediction = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
 accuracy = tf.reduce_mean(correct_prediction)
 
-ay = sess.run(y, feed_dict={x: mnist.train.images})
-print np.mean(np.argmax(ay, axis=1) == np.argmax(mnist.train.labels, axis=1))
-print(sess.run(correct_prediction, feed_dict={x: batch_xs, y_:batch_ys}))
+print(sess.run(accuracy, feed_dict={x: mnist.test.images, y_: mnist.test.labels}))

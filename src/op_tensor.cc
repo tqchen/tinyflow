@@ -81,7 +81,7 @@ NNVM_REGISTER_OP(equal)
         "FLuaCompute", R"(
 function(x, y, kwarg)
   return function()
-    y[1]:copy(torch.eq(x[1]:int(), x[2]:int()))
+    y[1]:copy(torch.eq(x[1], x[2]))
   end
 end
 )");

@@ -99,6 +99,9 @@ class TorchExecutor {
   int dev_mask_{kCPU};
   // node id of place holder ops
   std::vector<uint32_t> placeholder_nids_;
+  // size of number of node, placeholder_tblobs_[nid].data != nullptr
+  // if nid is a placeholder and the content is the corresponding TBlob to be copied in.
+  std::vector<TBlob> placeholder_tblobs_;
   // node id of variable that is assigned in this executor
   std::vector<uint32_t> assign_var_nids_;
   // node id of variable that is readed by this executor
@@ -171,6 +174,7 @@ void TorchExecutor::Init(nnvm::Symbol symbol, VarStateMap* states) {
 
   std::vector<int> read_count(idx.num_nodes(), 0);
   std::vector<int> assign_count(idx.num_nodes(), 0);
+  placeholder_tblobs_.resize(idx.num_nodes());
 
   for (uint32_t i = idx.num_nodes(); i != 0; --i) {
     uint32_t nid = i - 1;
@@ -206,8 +210,18 @@ void TorchExecutor::Init(nnvm::Symbol symbol, VarStateMap* states) {
 const std::vector<TBlob>&
 TorchExecutor::Run(const std::unordered_map<std::string, TBlob>& inputs) {
   Setup(inputs);
-  for (size_t i = 0; i < op_execs_.size(); ++i) {
-    if (!op_execs_[i].is_nil()) op_execs_[i]();
+  {
+    // execution
+    const auto& idx = graph_.indexed_graph();
+    auto* th = TorchState::ThreadLocalState();
+    for (size_t i = 0; i < op_execs_.size(); ++i) {
+      // copy in place holder as demanded.
+      if (placeholder_tblobs_[i].data != nullptr) {
+        th->CopyFromTo(th->NewTensorShared(placeholder_tblobs_[i]),
+                       data_entry_[idx.entry_id(i, 0)]);
+      }
+      if (!op_execs_[i].is_nil()) op_execs_[i]();
+    }
   }
   {
     // copy outputs
@@ -234,13 +248,11 @@ void TorchExecutor::Setup(const std::unordered_map<std::string, TBlob>& inputs) 
   }
   {
     // copy inputs
-    auto* th = TorchState::ThreadLocalState();
     const auto& idx = graph_.indexed_graph();
     for (uint32_t nid : placeholder_nids_) {
       const std::string& key = idx[nid].source->attrs.name;
       const TBlob& value = inputs.at(key);
-      th->CopyFromTo(th->NewTensorShared(value),
-                     data_entry_[idx.entry_id(nid, 0)]);
+      placeholder_tblobs_[nid] = value;
     }
   }
 }
@@ -341,6 +353,7 @@ void TorchExecutor::SetupStorage() {
       data_entry_is_var_[idx.entry_id(nid, 0)] = true;
     }
   }
+
 
   // size of each storage pool entry
   std::vector<size_t> pool_entry_size;

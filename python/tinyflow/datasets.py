@@ -15,6 +15,7 @@ class ArrayPacker(object):
             self.ptr = 0
         X = self.images[self.ptr:self.ptr+batch_size]
         Y = self.labels[self.ptr:self.ptr+batch_size]
+        self.ptr += batch_size
         return X, Y
 
 MNISTData = namedtuple("MNISTData", ["train", "test"])
