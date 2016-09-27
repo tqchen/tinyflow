@@ -42,6 +42,16 @@ class TorchState {
     lua->Eval("require 'torch'");
     lua->Eval("require 'nn'");
     lua->Eval("torch.setdefaulttensortype('torch.FloatTensor')");
+    LuaRef parse_tuple = lua->Eval(R"(
+      return function(s)
+        t = {}
+        for k in string.gmatch(s, '%d') do
+          table.insert(t, k)
+        end
+        return t
+      end
+    )");
+    lua->SetGlobalField("nn_parse_tuple", parse_tuple);
   }
   // create a new storage with given size
   LuaRef NewStorage(size_t size, int dev_mask = kCPU, int dtype = 0) {

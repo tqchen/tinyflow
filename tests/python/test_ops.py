@@ -46,7 +46,26 @@ def test_matmul():
     np.testing.assert_almost_equal(
         az, np.dot(ax, ay) * 4)
 
+def test_sum():
+    axis = [1, 3]
+    x = tf.placeholder(tf.float32)
+    y = tf.reduce_sum(x, reduction_indices=axis)
+    ax = np.random.uniform(size=(2, 4, 8, 7))
+    sess = tf.Session()
+    ay = sess.run(y, feed_dict={x:ax})
+    npy = ax.sum(axis=tuple(axis))
+    assert(np.mean(np.abs(ay - npy))) < 1e-6
+
+def test_mean():
+    axis = [1, 3]
+    x = tf.placeholder(tf.float32)
+    y = tf.reduce_mean(x, reduction_indices=axis)
+    ax = np.random.uniform(size=(2, 4, 8, 7))
+    sess = tf.Session()
+    ay = sess.run(y, feed_dict={x:ax})
+    npy = ax.mean(axis=tuple(axis))
+    assert(np.mean(np.abs(ay - npy))) < 1e-6
 
 if __name__ == "__main__":
-    test_matmul()
+    test_mean()
     pass

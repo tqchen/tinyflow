@@ -94,11 +94,13 @@ inline NodeEntry MakeNode(const char* op_name,
 inline std::vector<NodeEntry> MakeBackwardGrads(
     const char* op_name,
     const NodePtr& n,
-    std::vector<NodeEntry> inputs) {
+    std::vector<NodeEntry> inputs,
+    std::unordered_map<std::string, std::string> kwarg = {}) {
   NodePtr p = Node::Create();
   p->attrs.op = nnvm::Op::Get(op_name);
   p->attrs.name = std::move(n->attrs.name + "_backward");
   p->inputs = std::move(inputs);
+  p->attrs.dict = std::move(kwarg);
   p->control_deps.push_back(n);
   std::vector<NodeEntry> ret;
   for (uint32_t i = 0; i < p->num_outputs(); ++i) {

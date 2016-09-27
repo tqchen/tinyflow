@@ -8,6 +8,9 @@
 
 namespace tinyflow {
 
+// shape given the ZeroParam
+using namespace nnvm;
+
 // shape parameter for zeros, ones
 struct ZeroParam : public dmlc::Parameter<ZeroParam> {
   TShape shape;
@@ -18,9 +21,6 @@ struct ZeroParam : public dmlc::Parameter<ZeroParam> {
   }
 };
 DMLC_REGISTER_PARAMETER(ZeroParam);
-
-// shape given the ZeroParam
-using namespace nnvm;
 
 inline bool ZeroShape(const NodeAttrs& attrs,
                        std::vector<TShape> *ishape,
@@ -41,6 +41,7 @@ inline bool ZeroType(const NodeAttrs& attrs,
   DTYPE_ASSIGN(oattr->at(0), dtype);
   return true;
 }
+
 
 NNVM_REGISTER_OP(zeros)
 .describe("zeros")
@@ -171,6 +172,7 @@ end
             };
     });
 
+
 NNVM_REGISTER_OP(log)
 .describe("take elemtnwise logarithm")
 .set_num_inputs(1)
@@ -192,6 +194,7 @@ end
                  {ograds[0], n->inputs[0]})
       };
     });
+
 
 NNVM_REGISTER_OP(matmul)
 .describe("Matrix multiplication")
@@ -223,6 +226,7 @@ end
       return MakeBackwardGrads("_matmul_backward", n,
                                {ograds[0], n->inputs[0], n->inputs[1]});
     });
+
 
 // simply register a bulk op for backward
 NNVM_REGISTER_OP(_matmul_backward)
@@ -257,15 +261,176 @@ end
     });
 
 
-NNVM_REGISTER_OP(reduce_mean)
-.describe("reduce mean")
-.set_num_inputs(1);
+struct ReduceParam : public dmlc::Parameter<ReduceParam> {
+  Tuple<int> reduction_indices;
+  DMLC_DECLARE_PARAMETER(ReduceParam) {
+    DMLC_DECLARE_FIELD(reduction_indices).set_default(Tuple<int>());
+  }
+};
+DMLC_REGISTER_PARAMETER(ReduceParam);
+
+
+inline bool ReduceShape(const NodeAttrs& attrs,
+                        std::vector<TShape> *ishape,
+                        std::vector<TShape> *oshape) {
+  const auto& axis
+      = dmlc::get<ReduceParam>(attrs.parsed).reduction_indices;
+  if (ishape->at(0).ndim() == 0) return false;
+  if (axis.ndim() == 0) {
+    SHAPE_ASSIGN(oshape->at(0), TShape{1});
+  } else {
+    TShape tmp = ishape->at(0);
+    for (uint32_t idx : axis) {
+      tmp[idx] = 0;
+    }
+    std::vector<uint32_t> ret;
+    for (uint32_t x : tmp) {
+      if (x != 0) ret.push_back(x);
+    }
+    if (ret.size() == 0) ret.push_back(1);
+    SHAPE_ASSIGN(oshape->at(0), TShape(ret.begin(), ret.end()));
+  }
+  return true;
+}
 
 
 NNVM_REGISTER_OP(reduce_sum)
+.describe("reduce sum")
+.set_attr_parser(ParamParser<ReduceParam>)
+.set_num_inputs(1)
+.set_attr<FInferShape>("FInferShape", ReduceShape)
+.set_attr<FLuaCompute>(
+    "FLuaCompute", R"(
+function(x, y, kwarg)
+  local rhs = x[1]
+  local lhs = y[1]
+  if kwarg.reduction_indices == nil then
+    rhs = rhs:view(rhs:nElement())
+    return function()
+      torch.sum(lhs, rhs, 1)
+    end
+  else
+    local axis = nn_parse_tuple(kwarg.reduction_indices)
+    table.sort(axis)
+    local k = #axis
+    return function()
+      for i = 1, (k - 1) do
+        rhs = torch.sum(rhs, axis[k - i + 1] + 1)
+      end
+      torch.sum(lhs, rhs, axis[1] + 1)
+    end
+  end
+end
+)")
+.set_attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds) {
+      return MakeBackwardGrads("_reduce_sum_backward", n,
+                               {ograds[0]}, n->attrs.dict);
+    });
+
+
+NNVM_REGISTER_OP(reduce_mean)
 .describe("reduce mean")
-.set_num_inputs(1);
+.set_attr_parser(ParamParser<ReduceParam>)
+.set_num_inputs(1)
+.set_attr<FInferShape>("FInferShape", ReduceShape)
+.set_attr<FLuaCompute>(
+    "FLuaCompute", R"(
+function(x, y, kwarg)
+  local rhs = x[1]
+  local lhs = y[1]
+  if kwarg.reduction_indices == nil then
+    rhs = rhs:view(rhs:nElement())
+    return function()
+      torch.mean(lhs, rhs, 1)
+    end
+  else
+    local axis = nn_parse_tuple(kwarg.reduction_indices)
+    table.sort(axis)
+    local k = #axis
+    return function()
+      for i = 1, (k - 1) do
+        rhs = torch.mean(rhs, axis[k - i + 1] + 1)
+      end
+      torch.mean(lhs, rhs, axis[1] + 1)
+    end
+  end
+end
+)")
+.set_attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds) {
+      return MakeBackwardGrads("_reduce_mean_backward", n,
+                               {ograds[0]}, n->attrs.dict);
+    });
 
 
+NNVM_REGISTER_OP_GROUP(ReduceBackwardIndeAttr)
+.set_attr<FBackwardOutToInIndex>(
+    "FBackwardOutToInIndex", [](const NodeAttrs& attrs) {
+      return std::vector<uint32_t>{0};
+    })
+.set_attr<FBackwardInGradIndex>(
+    "FBackwardInGradIndex", [](const NodeAttrs& attrs) {
+      return std::vector<uint32_t>{0};
+    });
+
+
+NNVM_REGISTER_OP(_reduce_sum_backward)
+.set_num_inputs(1)
+.set_num_outputs(1)
+.set_attr<FLuaCompute>(
+    "FLuaCompute", R"(
+function(x, y, kwarg)
+  local rhs = x[1]
+  local lhs = y[1]
+  if kwarg.reduction_indices == nil then
+    lhs = lhs:view(lhs:nElement())
+    rhs = rhs:expandAs(lhs)
+  else
+    local axis = nn_parse_tuple(kwarg.reduction_indices)
+    local vshape = lhs:size()
+    for i = 1, #axis do
+      vshape[axis[i] + 1] = 1
+    end
+    rhs = rhs:view(vshape):expandAs(lhs)
+  end
+  return function()
+    lhs:copy(rhs)
+  end
+end
+)")
+.include("ReduceBackwardIndeAttr");
+
+
+NNVM_REGISTER_OP(_reduce_mean_backward)
+.set_num_inputs(1)
+.set_num_outputs(1)
+.set_attr<FLuaCompute>(
+    "FLuaCompute", R"(
+function(x, y, kwarg)
+  local rhs = x[1]
+  local lhs = y[1]
+  local scale = 1
+  if kwarg.reduction_indices == nil then
+    lhs = lhs:view(lhs:nElement())
+    rhs = rhs:expandAs(lhs)
+    scale = lhs:nElement()
+  else
+    local axis = nn_parse_tuple(kwarg.reduction_indices)
+    local vshape = lhs:size()
+    for i = 1, #axis do
+      scale = scale * vshape[axis[i] + 1]
+      vshape[axis[i] + 1] = 1
+    end
+    rhs = rhs:view(vshape):expandAs(lhs)
+  end
+  return function()
+    torch.div(lhs, rhs, scale)
+  end
+end
+)")
+.include("ReduceBackwardIndeAttr");
 
 }  // namespace tinyflow

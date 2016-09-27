@@ -25,7 +25,8 @@ from nnvm import symbol, graph
 from nnvm import _symbol_internal
 
 __all__ = ["float32", "placeholder", "Variable", "group",
-           "initialize_all_variables", "gradients"]
+           "initialize_all_variables", "gradients",
+           "zeros"]
 
 # data type table
 float32 = 0
@@ -58,6 +59,9 @@ def initialize_all_variables():
     init_op = group(*_all_variable_inits)
     _all_variable_inits = []
     return init_op
+
+def zeros(shape):
+    return symbol.zeros(shape=shape)
 
 
 def gradients(ys, xs, grad_ys=None):
