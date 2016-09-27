@@ -73,6 +73,20 @@ end
 )");
 
 
+NNVM_REGISTER_OP(equal)
+.describe("Equal comparitor")
+.set_num_inputs(2)
+.set_attr<FInferShape>("FInferShape", SameShape)
+.set_attr<FLuaCompute>(
+        "FLuaCompute", R"(
+function(x, y, kwarg)
+  return function()
+    y[1]:copy(torch.eq(x[1]:int(), x[2]:int()))
+  end
+end
+)");
+
+
 NNVM_REGISTER_OP(ones_like)
 .describe("ones_like")
 .set_num_inputs(1)
@@ -432,5 +446,22 @@ function(x, y, kwarg)
 end
 )")
 .include("ReduceBackwardIndeAttr");
+
+NNVM_REGISTER_OP(_argmax)
+.set_attr_parser(ParamParser<ReduceParam>)
+.set_num_inputs(1)
+.set_attr<FInferShape>("FInferShape", ReduceShape)
+.set_attr<FLuaCompute>(
+    "FLuaCompute", R"(
+function(x, y, kwarg)
+  local rhs = x[1]
+  local lhs = y[1]
+  local axis = nn_parse_tuple(kwarg.reduction_indices)
+  return function()
+    local mx, ind = torch.max(rhs, axis[1] + 1)
+    torch.add(lhs, ind:float(), -1)
+  end
+end
+)");
 
 }  // namespace tinyflow

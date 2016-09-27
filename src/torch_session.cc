@@ -465,7 +465,7 @@ void TorchExecutor::SetupOpExecs() {
         m:zeroGradParameters()
         m:accGradParameters(input, gradOutput, 1)
         m:updateGradInput(input, gradOutput)
-        if not m.gradInput.isSetTo(gradInput) then
+        if not m.gradInput:isSetTo(gradInput) then
           gradInput:copy(m.gradInput)
           m.gradInput:set(gradInput)
         end

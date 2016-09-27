@@ -6,5 +6,6 @@ from . import nn
 from . import train
 
 from ._base import *
+from ._ops import *
 
 from ._session import Session
