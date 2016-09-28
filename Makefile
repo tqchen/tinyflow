@@ -34,7 +34,7 @@ CUOBJ = $(patsubst %.cu, build/%_gpu.o, $(CUSRC))
 LIB_DEP = $(NNVM_PATH)/lib/libnnvm.a
 ALL_DEP = $(OBJ) $(LIB_DEP)
 
-all: lib/libtinyflow.sox
+all: lib/libtinyflow.so
 
 build/src/%.o: src/%.cc
 	@mkdir -p $(@D)

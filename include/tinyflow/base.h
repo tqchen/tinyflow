@@ -57,11 +57,12 @@ struct TBlob {
  *  After this function, outputs content are set to be correct value.
  *  This function cannot change the storage of inputs and outputs.
  * \note Register as FLuaCompute
+ *  only one of FLuaCreateNNModule/FLuaCompute is needed.
  */
 using FLuaCompute = std::string;
 
 /*!
- * \brief a lua code to create a NN module for an op.
+ * \brief a lua code to create a NN module/Criterion for an op.
  *  Only allows register normal module that takes one tensor and returns one tensor.
  *
  *  Signature:
@@ -71,19 +72,26 @@ using FLuaCompute = std::string;
  *  - return: a nn.Module for corresponding op.
  *
  * \note Register as FLuaCreateNNModule,
- *  either FLuaCreateNNModule or FLuaCompute is needed.
+ *  only one of FLuaCreateNNModule/FLuaCompute is needed.
  */
 using FLuaCreateNNModule = std::string;
 
 /*!
+ * \brief If registered and TBackwardNumNoGrad=k
+ *  The last k inputs do not have gradient.
+ * \note Register as TBackwardNumNoGradInputs
+ */
+using TBackwardNumNoGradInputs = int;
+
+/*!
  * \brief Whether backward need weight.
- * \note Register as TNNBackwardNeedInputs
+ * \note Register as TBackwardNeedInputs
  */
 using TBackwardNeedInputs = bool;
 
 /*!
  * \brief Whether backward op need outputs.
- * \note Register as TNNBackwardNeedOutputs
+ * \note Register as TBackwardNeedOutputs
  */
 using TBackwardNeedOutputs = bool;
 

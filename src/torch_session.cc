@@ -417,13 +417,15 @@ void TorchExecutor::SetupOpExecs() {
         m = m:cuda()
         empty = empty:cuda()
       end
-      local W, gW = m:parameters()
-      if W ~= nil then
-        for i, t in ipairs(W) do
-          t:set(empty)
-        end
-        for i, t in ipairs(gW) do
-          t:set(empty)
+      if torch.isTypeOf(m, nn.Module) then
+        local W, gW = m:parameters()
+        if W ~= nil then
+          for i, t in ipairs(W) do
+            t:set(empty)
+          end
+          for i, t in ipairs(gW) do
+            t:set(empty)
+          end
         end
       end
       return m
@@ -432,23 +434,36 @@ void TorchExecutor::SetupOpExecs() {
   LuaRef fcreate_nnforward_closure = lua->Eval(R"(
     return
     function(m, input, output, weight)
-      local W, gW = m:parameters()
-      local setW = function() end
-      if W ~= nil then
-        setW = function()
-          local W, gW = m:parameters()
-          for i, t in ipairs(W) do
-            t:set(weight[i])
+      if torch.isTypeOf(m, nn.Module) then
+        if m:parameters() ~= nil then
+          return function()
+            local W, gW = m:parameters()
+            for i, t in ipairs(W) do
+              t:set(weight[i])
+            end
+            m.output:set(output)
+            m:updateOutput(input)
+            if not m.output:isSetTo(output) then
+              output:copy(m.output)
+              m.output:set(output)
+            end
+          end
+        else
+          return function()
+            m.output:set(output)
+            m:updateOutput(input)
+            if not m.output:isSetTo(output) then
+              output:copy(m.output)
+              m.output:set(output)
+            end
           end
         end
-      end
-      return function()
-        setW()
-        m.output:set(output)
-        m:updateOutput(input)
-        if not m.output:isSetTo(output) then
-          output:copy(m.output)
-          m.output:set(output)
+      else
+        target = weight[1]
+        assert(torch.isTypeOf(m, nn.Criterion))
+        return function()
+          m.output_tensor:set(output)
+          m:updateOutput(input, target)
         end
       end
     end
@@ -456,44 +471,55 @@ void TorchExecutor::SetupOpExecs() {
   LuaRef fcreate_nnbackward_closure = lua->Eval(R"(
     return
     function(m, input, output, weight, gradInput, gradOutput, gradWeight)
-      local setW = function() end
-      local copyGradW = function() end
-      local W, gW = m:parameters()
-      if W ~= nil then
-        setW = function()
-          local W, gW = m:parameters()
-          if W ~= nil then
+      if torch.isTypeOf(m, nn.Module) then
+        if m:parameters() ~= nil then
+          return function()
+            local W, gW = m:parameters()
             for i, t in ipairs(W) do
               t:set(weight[i])
             end
             for i, t in ipairs(gW) do
               t:set(gradWeight[i])
             end
+            m.output:set(output)
+            m.gradInput:set(gradInput)
+            m:zeroGradParameters()
+            m:accGradParameters(input, gradOutput, 1)
+            m:updateGradInput(input, gradOutput)
+            if not m.gradInput:isSetTo(gradInput) then
+              gradInput:copy(m.gradInput)
+              m.gradInput:set(gradInput)
+            end
+            for i, t in ipairs(gW) do
+              if not t:isSetTo(gradWeight[i]) then
+                gradWeight[i]:copy(t)
+                t:set(gradWeight)
+              end
+            end
           end
-        end
-        copyGradW = function()
-          local W, gW = m:parameters()
-          for i, t in ipairs(gW) do
-            if not t:isSetTo(gradWeight[i]) then
-              gradWeight[i]:copy(t)
-              t:set(gradWeight)
+        else
+          return function()
+            m.output:set(output)
+            m.gradInput:set(gradInput)
+            m:updateGradInput(input, gradOutput)
+            if not m.gradInput:isSetTo(gradInput) then
+              gradInput:copy(m.gradInput)
+              m.gradInput:set(gradInput)
             end
           end
         end
-      end
-
-      return function()
-        setW()
-        m.output:set(output)
-        m.gradInput:set(gradInput)
-        m:zeroGradParameters()
-        m:accGradParameters(input, gradOutput, 1)
-        m:updateGradInput(input, gradOutput)
-        if not m.gradInput:isSetTo(gradInput) then
-          gradInput:copy(m.gradInput)
+      else
+        assert(torch.isTypeOf(m, nn.Criterion))
+        target = weight[1]
+        return function()
+          m.output_tensor:set(output)
           m.gradInput:set(gradInput)
+          m:updateGradInput(input, target)
+          if not m.gradInput:isSetTo(gradInput) then
+            gradInput:copy(m.gradInput)
+            m.gradInput:set(gradInput)
+          end
         end
-        copyGradW()
       end
     end
   )");
@@ -504,9 +530,10 @@ void TorchExecutor::SetupOpExecs() {
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
     if (inode.source->is_variable()) continue;
+    std::string lua_code;
     if (lua_create_module.count(inode.source->op())) {
-      std::string lua_str = "return " + lua_create_module[inode.source->op()];
-      LuaRef fcreate = lua->Eval(lua_str);
+      lua_code = "return " + lua_create_module[inode.source->op()];
+      LuaRef fcreate = lua->Eval(lua_code);
       std::vector<TShape> ishape;
       for (auto& e : inode.inputs) {
         ishape.push_back(node_shape_->at(idx.entry_id(e)));

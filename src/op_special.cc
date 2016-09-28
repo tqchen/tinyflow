@@ -59,30 +59,4 @@ NNVM_REGISTER_OP(_no_gradient)
 .describe("Special op indicating no gradient")
 .set_num_inputs(0);
 
-// special backward op indicating backward of nn module
-NNVM_REGISTER_OP(_backward)
-.describe("backward operator of NN module")
-.set_num_outputs([] (const NodeAttrs& attrs) {
-  const NNBackwardParam& param = dmlc::get<NNBackwardParam>(attrs.parsed);
-  return param.forward_readonly_inputs;
-  })
-.set_num_inputs([] (const NodeAttrs& attrs) {
-  const NNBackwardParam& param = dmlc::get<NNBackwardParam>(attrs.parsed);
-  uint32_t n = param.num_states + 1;
-  if (param.need_inputs) n += param.forward_readonly_inputs;
-  if (param.need_outputs) n += 1;
-  return n;
-  })
-.set_attr<nnvm::FBackwardOutToInIndex>("FBackwardOutToInIndex", [](const NodeAttrs& attrs) {
-  const NNBackwardParam& param = dmlc::get<NNBackwardParam>(attrs.parsed);
-  std::vector<uint32_t> vec;
-  for (uint32_t i = 0; i < param.forward_readonly_inputs; ++i) {
-    vec.push_back(i);
-  }
-  return vec;
-  })
-.set_attr<nnvm::FBackwardInGradIndex>("FBackwardInGradIndex", [](const NodeAttrs& attrs) {
-    return std::vector<uint32_t>{0};
-  });
-
 }  // namespace tinyflow
