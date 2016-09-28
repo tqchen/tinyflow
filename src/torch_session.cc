@@ -462,8 +462,8 @@ void TorchExecutor::SetupOpExecs() {
         target = weight[1]
         assert(torch.isTypeOf(m, nn.Criterion))
         return function()
-          m.output_tensor:set(output)
-          m:updateOutput(input, target)
+          local x = m:updateOutput(input, target)
+          output:fill(x)
         end
       end
     end
@@ -512,7 +512,6 @@ void TorchExecutor::SetupOpExecs() {
         assert(torch.isTypeOf(m, nn.Criterion))
         target = weight[1]
         return function()
-          m.output_tensor:set(output)
           m.gradInput:set(gradInput)
           m:updateGradInput(input, target)
           if not m.gradInput:isSetTo(gradInput) then

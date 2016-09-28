@@ -58,6 +58,17 @@ inline bool SameShape(const NodeAttrs& attrs,
   return true;
 }
 
+// The output is a scalar.
+inline bool ScalarShape(const NodeAttrs& attrs,
+                        std::vector<TShape> *ishape,
+                        std::vector<TShape> *oshape) {
+  for (TShape& pshape : *ishape) {
+    if (pshape.ndim() == 0) return false;
+  }
+  SHAPE_ASSIGN(oshape->at(0), TShape{1});
+  return true;
+}
+
 inline std::vector<std::pair<int, int> > InplaceIn0Out0(const NodeAttrs& attrs) {
   return {{0, 0}};
 }

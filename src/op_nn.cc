@@ -96,11 +96,13 @@ NNVM_REGISTER_OP_GROUP(nn_module)
 .set_attr<bool>("TBackwardNeedInputs", true)
 .set_attr<bool>("TBackwardNeedOutputs", true);
 
+
 NNVM_REGISTER_OP_GROUP(nn_criterion)
 .set_attr<FGradient>("FGradient", MakeNNBackwardNode)
 .set_attr<int>("TBackwardNumNoGradInputs", 1)
 .set_attr<bool>("TBackwardNeedInputs", true)
-.set_attr<bool>("TBackwardNeedOutputs", false);
+.set_attr<bool>("TBackwardNeedOutputs", false)
+.set_attr<FInferShape>("FInferShape", ScalarShape);
 
 
 NNVM_REGISTER_OP(softmax)
@@ -114,5 +116,19 @@ function(ishape, oshape, kwarg)
 end
 )")
 .set_attr<FInferShape>("FInferShape", SameShape);
+
+
+NNVM_REGISTER_OP(sparse_softmax_cross_entropy_with_logits)
+.describe("Softmax cross entropy given logit and label")
+.set_num_inputs(2)
+.include("nn_criterion")
+.set_attr<FLuaCreateNNModule>(
+    "FLuaCreateNNModule", R"(
+function(ishape, oshape, kwarg)
+  return nn_zero_index_target_criterion(
+    nn.CrossEntropyCriterion())
+end
+)");
+
 
 }  // namespace tinyflow

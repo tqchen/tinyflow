@@ -51,7 +51,21 @@ class TorchState {
         return t
       end
     )");
+    LuaRef zero_index_target_criterion = lua->Eval(R"(
+      return function(c)
+        local updateOutput = c.updateOutput
+        local updateGradInput = c.updateGradInput
+        c.updateOutput = function(self, input, target)
+          return updateOutput(self, input, target + 1)
+        end
+        c.updateGradInput = function(self, input, target)
+          return updateGradInput(self, input, target + 1)
+        end
+        return c
+      end
+    )");
     lua->SetGlobalField("nn_parse_tuple", parse_tuple);
+    lua->SetGlobalField("nn_zero_index_target_criterion", zero_index_target_criterion);
   }
   // prepare for GPU ops
   inline void InitGPU() {

@@ -35,3 +35,4 @@ dmlc-core
 cli_test
 *.pyc
 nnvm
+test.*
