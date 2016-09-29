@@ -428,7 +428,12 @@ void TorchExecutor::SetupOpExecs() {
     return
     function(m, dev_mask, empty)
       if dev_mask == 2 then
-        m = m:cuda()
+        if torch.isTypeOf(m, nn.Criterion) then
+          return m:cuda()
+        end
+        local net = nn.Sequential():add(m):cuda()
+        net = cudnn.convert(net, cudnn)
+        return net.modules[1]
       end
       if torch.isTypeOf(m, nn.Module) then
         local W, gW = m:parameters()

@@ -1,8 +1,6 @@
-"""TinyFlow Example code.
+"""TinyFlow Example: LeNet for Digits classification.
 
-Automatic variable creation and shape inductions.
-The network structure is directly specified via forward node numbers
-The variables are automatically created, and their shape infered by tf.infer_variable_shapes
+This code uses automatic variable shape inference for shorter code.
 """
 import tinyflow as tf
 from tinyflow.datasets import get_mnist

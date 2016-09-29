@@ -77,6 +77,7 @@ class TorchState {
     auto* lua = LuaState::ThreadLocalState();
     lua->Eval("require 'cutorch'");
     lua->Eval("require 'cunn'");
+    lua->Eval("require 'cudnn'");
     LOG(INFO) << "finished gpu initialization...";
     gpu_init_ = true;
   }

@@ -339,8 +339,7 @@ function(ishape, kwarg)
   return nn.SpatialMaxPooling(kW, kH, dW, dH, padW, padH)
 end
 )")
-.set_attr<FInferShape>("FInferShape", ConvPoolShape)
-.set_attr<bool>("TBackwardNeedOutputs", false);
+.set_attr<FInferShape>("FInferShape", ConvPoolShape);
 
 
 NNVM_REGISTER_OP(mean_sparse_softmax_cross_entropy_with_logits)
