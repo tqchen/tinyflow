@@ -26,6 +26,10 @@ customized learning system easily.
   the modular design being portable to other system that reuses NNVM.
 - It demonstrates how intermediate representation like NNVM to be able to
   target multiple front-ends(TF, MXNet) and backends(Torch7, MXNet) with common set of optimizations.
+- TinyFlow, together with other systems(e.g. MXNet) can be used as testbed on the
+  common reusable modules in deep learning to encourage front-end, optimization module and backends
+  that are shared across frameworks.
+
 
 We believe the Unix Philosophy can building learning system more fun and everyone can be able to build
 and understand learning system better.
