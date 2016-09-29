@@ -5,15 +5,10 @@ This code is adapted from Tensorflow's MNIST Tutorial with minimum code changes.
 import tinyflow as tf
 from tinyflow.datasets import get_mnist
 
-stdev = 0.01
 # Create the model
 x = tf.placeholder(tf.float32, [None, 784])
-
-conv1_filter = tf.Variable(tf.normal([20, 3, 5, 5], stdev=stdev))
-conv1_bias = tf.Variable(tf.normal([20], stdev=stdev))
-conv1 = tf.nn.conv2d(conv1_filter, bias=conv1_bias)
-flatten = tf.nn.flatten(conv1)
-y = tf.nn.softmax(tf.matmul(flatten, W))
+W = tf.Variable(tf.zeros([784, 10]))
+y = tf.nn.softmax(tf.matmul(x, W))
 
 # Define loss and optimizer
 y_ = tf.placeholder(tf.float32, [None, 10])
@@ -21,7 +16,7 @@ y_ = tf.placeholder(tf.float32, [None, 10])
 cross_entropy = tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(y), reduction_indices=[1]))
 train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
 
-sess = tf.Session(device='gpu')
+sess = tf.Session()
 sess.run(tf.initialize_all_variables())
 
 # get the mnist dataset
