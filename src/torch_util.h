@@ -43,10 +43,13 @@ class TorchState {
     lua->Eval("require 'nn'");
     lua->Eval("torch.setdefaulttensortype('torch.FloatTensor')");
     LuaRef parse_tuple = lua->Eval(R"(
-      return function(s)
+      return function(s, def)
+        if s == nil then
+          return def
+        end
         t = {}
         for k in string.gmatch(s, '%d') do
-          table.insert(t, k)
+          table.insert(t, tonumber(k))
         end
         return t
       end

@@ -257,7 +257,8 @@ inline bool ConvPoolShape(const NodeAttrs& attrs,
     padH = (filter[2] - 1) / 2;
     padW = (filter[3] - 1) / 2;
   }
-  CHECK_EQ(in[1], filter[2]);
+  CHECK_EQ(in[1], filter[1])
+      << "in=" << in << ", filter=" << filter;
   // batch, out, height, width
   oshape->at(0) = TShape{in[0], filter[0],
                          (in[2] + 2 * padH - filter[2]) / dH + 1,
@@ -283,7 +284,7 @@ function(ishape, kwarg)
   local kW = fshape[4]
   local inH = dshape[3]
   local inW = dshape[4]
-  local stride = nn_parse_tuple(kwarg.strides)
+  local stride = nn_parse_tuple(kwarg.strides, {1,1,1,1})
   local dH = stride[2]
   local dW = stride[3]
   local padH = 0
@@ -323,7 +324,7 @@ NNVM_REGISTER_OP(max_pool)
     "FLuaCreateNNModule", R"(
 function(ishape, kwarg)
   local ksize = nn_parse_tuple(kwarg.ksize)
-  local stride = nn_parse_tuple(kwarg.strides)
+  local stride = nn_parse_tuple(kwarg.strides, {1,1,1,1})
   local kH = ksize[2]
   local kW = ksize[3]
   local dH = stride[2]
@@ -353,5 +354,50 @@ function(ishape, kwarg)
     nn.CrossEntropyCriterion())
 end
 )");
+
+const char* LuaReshape = R"(
+function(x, y, kwarg)
+  if x[1]:storage() == y[1]:storage() then
+    return function() end
+  else
+    return function() y[1]:copy(x[1]:resizeAs(y[1])) end
+  end
+end
+)";
+
+NNVM_REGISTER_OP(flatten_layer)
+.describe("Flatten to 2D")
+.set_num_inputs(1)
+.set_attr<FLuaCompute>("FLuaCompute", LuaReshape)
+.set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
+.set_attr<FInferShape>(
+    "FInferShape", [](const NodeAttrs& attrs,
+                      std::vector<TShape> *ishape,
+                      std::vector<TShape> *oshape) {
+      const TShape& in = ishape->at(0);
+      if (in.ndim() == 0) return false;
+      TShape out{in[0], in.ProdShape(1, in.ndim())};
+      SHAPE_ASSIGN(oshape->at(0), out);
+      return true;
+    })
+.set_attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds) {
+      return MakeBackwardGrads("_flatten_backward", n,
+                               {ograds[0], n->inputs[0]});
+    });
+
+NNVM_REGISTER_OP(_flatten_backward)
+.set_num_inputs(1)
+.set_attr<FLuaCompute>("FLuaCompute", LuaReshape)
+.set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
+.set_attr<FBackwardOutToInIndex>(
+    "FBackwardOutToInIndex", [](const NodeAttrs& attrs) {
+      return std::vector<uint32_t>{0};
+    })
+.set_attr<FBackwardInGradIndex>(
+    "FBackwardInGradIndex", [](const NodeAttrs& attrs) {
+      return std::vector<uint32_t>{0};
+    });
 
 }  // namespace tinyflow

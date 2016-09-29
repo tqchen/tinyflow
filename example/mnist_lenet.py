@@ -9,9 +9,16 @@ from tinyflow.datasets import get_mnist
 
 # Create the model
 x = tf.placeholder(tf.float32)
-fc1 = tf.linear(x, num_hidden=100, name="fc1", no_bias=False)
-relu1 = tf.relu(fc1)
-fc2 = tf.linear(relu1, num_hidden=10, name="fc2")
+conv1 = tf.nn.conv2d(x, num_filter=20, ksize=[1, 5, 5, 1], name="conv1", no_bias=False)
+tanh1 = tf.tanh(conv1)
+pool1 = tf.nn.max_pool(tanh1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1])
+conv2 = tf.nn.conv2d(pool1, num_filter=50, ksize=[1, 5, 5, 1], name="conv2", no_bias=False)
+tanh2 = tf.tanh(conv2)
+pool2 = tf.nn.max_pool(tanh2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1])
+flatten = tf.nn.flatten_layer(pool2)
+fc1 = tf.nn.linear(flatten, num_hidden=500, name="fc1")
+tanh3 = tf.tanh(fc1)
+fc2 = tf.nn.linear(tanh3, num_hidden=10, name="fc2")
 
 # define loss
 label = tf.placeholder(tf.float32)
@@ -21,16 +28,17 @@ train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
 sess = tf.Session(device='gpu')
 
 # Auromatic variable shape inference API, infers the shape and initialize the weights.
-known_shape = {x: [100, 28 * 28], label: [100]}
+known_shape = {x: [100, 1, 28, 28], label: [100]}
+stdev = 0.01
 init_step = []
 for v, name, shape in tf.infer_variable_shapes(
         cross_entropy, feed_dict=known_shape):
-    init_step.append(tf.assign(v, tf.normal(shape)))
+    init_step.append(tf.assign(v, tf.normal(shape, stdev)))
     print("shape[%s]=%s" % (name, str(shape)))
 sess.run(init_step)
 
 # get the mnist dataset
-mnist = get_mnist(flatten=True, onehot=False)
+mnist = get_mnist(flatten=False, onehot=False)
 
 print_period = 1000
 for epoch in range(10):

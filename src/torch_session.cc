@@ -231,7 +231,12 @@ TorchExecutor::Run(const std::unordered_map<std::string, TBlob>& inputs) {
         th->CopyFromTo(th->NewTensorShared(placeholder_tblobs_[i]),
                        data_entry_[idx.entry_id(i, 0)]);
       }
-      if (!op_execs_[i].is_nil()) op_execs_[i]();
+      try {
+        if (!op_execs_[i].is_nil()) op_execs_[i]();
+      } catch (dmlc::Error e) {
+        LOG(INFO) << "error catched in op " << idx[i].source->op()->name;
+        throw e;
+      }
     }
   }
   {
