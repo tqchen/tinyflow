@@ -9,3 +9,5 @@ from ._base import *
 from ._ops import *
 
 from ._session import Session
+
+from ._util import infer_variable_shapes

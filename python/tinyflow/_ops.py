@@ -10,3 +10,11 @@ from nnvm import _symbol_internal
 
 def argmax(x, axis):
     return _symbol_internal._argmax(x, reduction_indices=[axis])
+
+
+def zeros(shape):
+    return symbol.zeros(shape=shape)
+
+
+def normal(shape, stdev=1.0):
+    return symbol.normal(shape=shape, stdev=stdev)

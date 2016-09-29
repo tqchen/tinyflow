@@ -1,6 +1,7 @@
 from __future__ import absolute_import as _abs
 import os
 import sys
+
 if sys.version_info[0] == 3:
     import builtins as __builtin__
 else:
@@ -18,6 +19,7 @@ if hasattr(__builtin__, "NNVM_LIBRARY_NAME"):
 else:
     __builtin__.NNVM_LIBRARY_NAME = "libtinyflow"
 
+
 import ctypes as _ctypes
 from nnvm.name import NameManager
 from nnvm._base import c_str, check_call, _LIB
@@ -25,7 +27,7 @@ from nnvm import symbol, graph
 from nnvm import _symbol_internal
 
 __all__ = ["float32", "placeholder", "Variable", "group",
-           "initialize_all_variables", "gradients", "zeros"]
+           "initialize_all_variables", "gradients"]
 
 # data type table
 float32 = 0
@@ -73,6 +75,3 @@ def gradients(ys, xs, grad_ys=None):
     nx = len(xs) if isinstance(xs, list) else len(xs.list_output_names())
     ret = [sym[i] for i in range(nx)]
     return ret
-
-def zeros(shape):
-    return symbol.zeros(shape=shape)

@@ -409,13 +409,21 @@ void TorchExecutor::SetupOpExecs() {
       nnvm::Op::GetAttr<FLuaCreateNNModule>("FLuaCreateNNModule");
   const auto& lua_compute_code =
       nnvm::Op::GetAttr<FLuaCompute>("FLuaCompute");
-  LuaRef fremove_module_storage = lua->Eval(R"(
+  LuaRef lempty_tensor = lua->Eval(R"(
     return
-    function(m, dev_mask)
+    function(dev_mask)
       local empty = torch.FloatTensor()
       if dev_mask == 2 then
-        m = m:cuda()
         empty = empty:cuda()
+      end
+      return empty
+    end
+   )")(dev_mask_);
+  LuaRef fremove_module_storage = lua->Eval(R"(
+    return
+    function(m, dev_mask, empty)
+      if dev_mask == 2 then
+        m = m:cuda()
       end
       if torch.isTypeOf(m, nn.Module) then
         local W, gW = m:parameters()
@@ -493,7 +501,7 @@ void TorchExecutor::SetupOpExecs() {
             for i, t in ipairs(gW) do
               if not t:isSetTo(gradWeight[i]) then
                 gradWeight[i]:copy(t)
-                t:set(gradWeight)
+                t:set(gradWeight[i])
               end
             end
           end
@@ -538,7 +546,7 @@ void TorchExecutor::SetupOpExecs() {
         ishape.push_back(node_shape_->at(idx.entry_id(e)));
       }
       op_exec_modules_[nid] = fremove_module_storage(
-          fcreate(ishape, inode.source->attrs.dict), dev_mask_);
+          fcreate(ishape, inode.source->attrs.dict), dev_mask_, lempty_tensor);
     }
   }
 
@@ -579,7 +587,7 @@ void TorchExecutor::SetupOpExecs() {
       const NNBackwardParam& param =
           dmlc::get<NNBackwardParam>(inode.source->attrs.parsed);
       std::vector<LuaRef> weight, gradWeight;
-      LuaRef gradInput, gradOutput, input, output;
+      LuaRef gradInput, gradOutput, input = lempty_tensor, output = lempty_tensor;
       gradInput = out_array[0];
       for (size_t i = 1; i < out_array.size(); ++i) {
         gradWeight.push_back(out_array[i]);
@@ -594,7 +602,7 @@ void TorchExecutor::SetupOpExecs() {
         }
         in_ptr += param.forward_readonly_inputs;
       } else {
-        weight.resize(param.forward_readonly_inputs);
+        weight.resize(param.forward_readonly_inputs, lempty_tensor);
       }
       CHECK_EQ(param.num_states, 0);
       if (param.need_outputs) {

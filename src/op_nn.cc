@@ -111,24 +111,247 @@ NNVM_REGISTER_OP(softmax)
 .include("nn_module")
 .set_attr<FLuaCreateNNModule>(
     "FLuaCreateNNModule", R"(
-function(ishape, oshape, kwarg)
+function(ishape, kwarg)
   return nn.SoftMax()
 end
 )")
 .set_attr<FInferShape>("FInferShape", SameShape);
 
 
-NNVM_REGISTER_OP(sparse_softmax_cross_entropy_with_logits)
+NNVM_REGISTER_OP(relu)
+.describe("Relu operation")
+.set_num_inputs(1)
+.include("nn_module")
+.set_attr<FLuaCreateNNModule>(
+    "FLuaCreateNNModule", R"(
+function(ishape, kwarg)
+  return nn.ReLU()
+end
+)")
+.set_attr<FInferShape>("FInferShape", SameShape)
+.set_attr<bool>("TBackwardNeedOutputs", true);
+
+
+NNVM_REGISTER_OP(tanh)
+.describe("Tanh operation")
+.set_num_inputs(1)
+.include("nn_module")
+.set_attr<FLuaCreateNNModule>(
+    "FLuaCreateNNModule", R"(
+function(ishape, kwarg)
+  return nn.Tanh()
+end
+)")
+.set_attr<FInferShape>("FInferShape", SameShape);
+
+
+// same as matrix multiplication, but automatically infers shape
+struct LinearParam : public dmlc::Parameter<LinearParam> {
+  uint32_t num_hidden;
+  bool no_bias;
+
+  DMLC_DECLARE_PARAMETER(LinearParam) {
+    DMLC_DECLARE_FIELD(num_hidden).set_default(0);
+    DMLC_DECLARE_FIELD(no_bias).set_default(true);
+  }
+};
+DMLC_REGISTER_PARAMETER(LinearParam);
+
+inline bool LinearShape(const NodeAttrs& attrs,
+                        std::vector<TShape> *ishape,
+                        std::vector<TShape> *oshape) {
+  const auto& param = dmlc::get<LinearParam>(attrs.parsed);
+  if (ishape->at(0).ndim() == 0) return false;
+  const TShape& in = ishape->at(0);
+  TShape wshape;
+  if (param.num_hidden != 0) {
+    wshape = TShape{param.num_hidden, in[1]};
+    SHAPE_ASSIGN(ishape->at(1), wshape);
+  } else {
+    if (ishape->at(1).ndim() == 0) return false;
+  }
+  if (ishape->size() > 2) {
+    TShape bshape{ishape->at(1)[0]};
+    SHAPE_ASSIGN(ishape->at(2), bshape);
+  }
+  TShape out{in[0], wshape[0]};
+  SHAPE_ASSIGN(oshape->at(0), out);
+  return true;
+}
+
+NNVM_REGISTER_OP(linear)
+.describe("A linear transformation layer")
+.set_attr_parser(ParamParser<LinearParam>)
+.set_num_inputs([](const NodeAttrs& attrs) {
+    return (dmlc::get<LinearParam>(attrs.parsed).no_bias? 2 : 3);
+  })
+.set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
+    if (dmlc::get<LinearParam>(attrs.parsed).no_bias) {
+      return std::vector<std::string>{"data", "weight"};
+    } else {
+      return std::vector<std::string>{"data", "weight", "bias"};
+    }
+  })
+.include("nn_module")
+.set_attr<FLuaCreateNNModule>(
+    "FLuaCreateNNModule", R"(
+function(ishape, kwarg)
+  local wshape = ishape[2]
+  local m = nn.Linear(wshape[2], wshape[1])
+  if #ishape == 2 then
+    m = m:noBias()
+  end
+  return m
+end
+)")
+.set_attr<FInferShape>("FInferShape", LinearShape);
+
+
+struct ConvPoolParam : public dmlc::Parameter<ConvPoolParam> {
+  TShape ksize;
+  TShape strides;
+  std::string padding;
+  std::string data_format;
+  bool no_bias;
+  uint32_t num_filter;
+
+  DMLC_DECLARE_PARAMETER(ConvPoolParam) {
+    DMLC_DECLARE_FIELD(ksize).set_default(TShape{1, 1, 1, 1});
+    DMLC_DECLARE_FIELD(strides).set_default(TShape{1, 1, 1, 1});
+    DMLC_DECLARE_FIELD(padding).set_default("SAME");
+    DMLC_DECLARE_FIELD(data_format).set_default("NCHW");
+    DMLC_DECLARE_FIELD(no_bias).set_default(true);
+    DMLC_DECLARE_FIELD(num_filter).set_default(0);
+  }
+};
+DMLC_REGISTER_PARAMETER(ConvPoolParam);
+
+inline bool ConvPoolShape(const NodeAttrs& attrs,
+                          std::vector<TShape> *ishape,
+                          std::vector<TShape> *oshape) {
+  const auto& param = dmlc::get<ConvPoolParam>(attrs.parsed);
+  if (ishape->at(0).ndim() == 0) return false;
+  const TShape& in = ishape->at(0);
+  TShape filter;
+  if (ishape->size() == 1) {
+    // pooling
+    CHECK_EQ(param.ksize.ndim(), 4);
+    CHECK(param.ksize[0] == param.ksize[3] && param.ksize[0] == 1);
+    filter = TShape{in[1], in[1], param.ksize[1], param.ksize[2]};
+  } else if (param.ksize.ndim() == 4 && param.num_filter != 0) {
+    CHECK(param.ksize[0] == param.ksize[3] && param.ksize[0] == 1);
+    filter = TShape{param.num_filter, in[1], param.ksize[1], param.ksize[2]};
+    SHAPE_ASSIGN(ishape->at(1), filter);
+  } else {
+    if (ishape->at(1).ndim() == 0) return false;
+    filter = ishape->at(1);
+  }
+  if (ishape->size() > 2) {
+    SHAPE_ASSIGN(ishape->at(2), TShape{filter[0]});
+  }
+  CHECK(param.strides[0] == param.strides[3] && param.strides[0] == 1);
+  uint32_t dH = param.strides[1];
+  uint32_t dW = param.strides[2];
+  uint32_t padW = 0, padH = 0;
+  if (param.padding == "SAME") {
+    padH = (filter[2] - 1) / 2;
+    padW = (filter[3] - 1) / 2;
+  }
+  CHECK_EQ(in[1], filter[2]);
+  // batch, out, height, width
+  oshape->at(0) = TShape{in[0], filter[0],
+                         (in[2] + 2 * padH - filter[2]) / dH + 1,
+                         (in[3] + 2 * padW - filter[3]) / dW + 1};
+  return true;
+}
+
+NNVM_REGISTER_OP(conv2d)
+.describe("Convolution operation")
+.set_num_inputs([](const NodeAttrs& attrs){
+    return (dmlc::get<ConvPoolParam>(attrs.parsed).no_bias? 2 : 3);
+  })
+.set_attr_parser(ParamParser<ConvPoolParam>)
+.include("nn_module")
+.set_attr<FLuaCreateNNModule>(
+    "FLuaCreateNNModule", R"(
+function(ishape, kwarg)
+  local dshape = ishape[2]
+  local fshape = ishape[2]
+  local outPlane = fshape[1]
+  local inPlane = fshape[2]
+  local kH = fshape[3]
+  local kW = fshape[4]
+  local inH = dshape[3]
+  local inW = dshape[4]
+  local stride = nn_parse_tuple(kwarg.strides)
+  local dH = stride[2]
+  local dW = stride[3]
+  local padH = 0
+  local padW = 0
+
+  assert(kwarg.data_format == 'NCHW')
+  if kwarg.padding == 'SAME' then
+    padW = math.floor((kW - 1) / 2)
+    padH = math.floor((kH - 1) / 2)
+  end
+  local m = nn.SpatialConvolution(
+    inPlane, outPlane,
+    kW, kH, dW, dH, padW, padH)
+  if #ishape == 2 then
+    m = m:noBias()
+  end
+  return m
+end
+)")
+.set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
+    if (dmlc::get<ConvPoolParam>(attrs.parsed).no_bias) {
+      return std::vector<std::string>{"data", "weight"};
+    } else {
+      return std::vector<std::string>{"data", "weight", "bias"};
+    }
+  })
+.set_attr<FInferShape>("FInferShape", ConvPoolShape)
+.set_attr<bool>("TBackwardNeedOutputs", false);
+
+
+NNVM_REGISTER_OP(max_pool)
+.describe("Max pooling")
+.set_num_inputs(1)
+.set_attr_parser(ParamParser<ConvPoolParam>)
+.include("nn_module")
+.set_attr<FLuaCreateNNModule>(
+    "FLuaCreateNNModule", R"(
+function(ishape, kwarg)
+  local ksize = nn_parse_tuple(kwarg.ksize)
+  local stride = nn_parse_tuple(kwarg.strides)
+  local kH = ksize[2]
+  local kW = ksize[3]
+  local dH = stride[2]
+  local dW = stride[3]
+  local padH = 0
+  local padW = 0
+  assert(kwarg.data_format == 'NCHW')
+  if kwarg.padding == 'SAME' then
+    padW = math.floor((kW - 1) / 2)
+    padH = math.floor((kH - 1) / 2)
+  end
+  return nn.SpatialMaxPooling(kW, kH, dW, dH, padW, padH)
+end
+)")
+.set_attr<FInferShape>("FInferShape", ConvPoolShape)
+.set_attr<bool>("TBackwardNeedOutputs", false);
+
+
+NNVM_REGISTER_OP(mean_sparse_softmax_cross_entropy_with_logits)
 .describe("Softmax cross entropy given logit and label")
 .set_num_inputs(2)
 .include("nn_criterion")
 .set_attr<FLuaCreateNNModule>(
     "FLuaCreateNNModule", R"(
-function(ishape, oshape, kwarg)
+function(ishape, kwarg)
   return nn_zero_index_target_criterion(
     nn.CrossEntropyCriterion())
 end
 )");
-
 
 }  // namespace tinyflow

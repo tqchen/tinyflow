@@ -23,8 +23,8 @@ struct ZeroParam : public dmlc::Parameter<ZeroParam> {
 DMLC_REGISTER_PARAMETER(ZeroParam);
 
 inline bool ZeroShape(const NodeAttrs& attrs,
-                       std::vector<TShape> *ishape,
-                       std::vector<TShape> *oshape) {
+                      std::vector<TShape> *ishape,
+                      std::vector<TShape> *oshape) {
   const TShape& ts = dmlc::get<ZeroParam>(attrs.parsed).shape;
   if (ts.ndim() != 0) {
     SHAPE_ASSIGN(oshape->at(0), ts);
@@ -68,6 +68,26 @@ NNVM_REGISTER_OP(ones)
 function(x, y, kwarg)
   return function()
     y[1]:fill(1)
+  end
+end
+)");
+
+
+NNVM_REGISTER_OP(normal)
+.describe("normal distribution")
+.set_num_inputs(0)
+.set_attr_parser(ParamParser<ZeroParam>)
+.set_attr<FInferShape>("FInferShape", ZeroShape)
+.set_attr<FInferType>("FInferType", ZeroType)
+.set_attr<FLuaCompute>(
+    "FLuaCompute", R"(
+function(x, y, kwarg)
+  return function()
+    local scale = 1
+    if kwarg.stdev ~= nil then
+      scale = tonumber(kwarg.stdev)
+    end
+    y[1]:copy(torch.randn(y[1]:size()) * scale)
   end
 end
 )");

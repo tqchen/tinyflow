@@ -5,11 +5,15 @@ This code is adapted from Tensorflow's MNIST Tutorial with minimum code changes.
 import tinyflow as tf
 from tinyflow.datasets import get_mnist
 
+stdev = 0.01
 # Create the model
 x = tf.placeholder(tf.float32, [None, 784])
-W = tf.Variable(tf.zeros([784, 10]))
-b = tf.Variable(tf.zeros([10]))
-y = tf.nn.softmax(tf.matmul(x, W))
+
+conv1_filter = tf.Variable(tf.normal([20, 3, 5, 5], stdev=stdev))
+conv1_bias = tf.Variable(tf.normal([20], stdev=stdev))
+conv1 = tf.nn.conv2d(conv1_filter, bias=conv1_bias)
+flatten = tf.nn.flatten(conv1)
+y = tf.nn.softmax(tf.matmul(flatten, W))
 
 # Define loss and optimizer
 y_ = tf.placeholder(tf.float32, [None, 10])
