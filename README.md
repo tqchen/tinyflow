@@ -59,7 +59,7 @@ Most of TinyFlow's code is self-contained.
 
 ## Build
 - Install Torch7
-- Set up environement variable ```TORCH_HOME``` to root of torch
+- Set up environment variable ```TORCH_HOME``` to root of torch
 - Type ```make```
 - Setup python path to include tinyflow and nnvm
 ```bash
