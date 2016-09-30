@@ -20,7 +20,7 @@ As explained in the goal of [NNVM](https://github.com/dmlc/nnvm/),
 it is important to make modular and reusable components for to enable us to build
 customized learning system easily.
 
-- Course Material for teaching DL system. TinyFlow is be a perfect material to teach new student the concepts of deep learning systems.
+- Course Material for teaching DL system. TinyFlow can be used to teach student the concepts in deep learning systems.
   - e.g. design homeworks on implementing symbolic differentiation, memory allocation, operator fusion.
 - Experiment bed for learning system researchers. TinyFlow allows easy addition with new system features with
   the modular design being portable to other system that reuses NNVM.
