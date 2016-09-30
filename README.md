@@ -4,7 +4,7 @@ TinyFlow is  "example code" for [NNVM](https://github.com/dmlc/nnvm/).
 
 It demonstrates how can we build a clean, minimum and powerful computational
 graph based deep learning system with same API as TensorFlow.
-The operator code are implemented with [Torch7](https://github.com/torch/torch7) to reduce the effort to write operators.
+The operator code are implemented with [Torch7](https://github.com/torch/torch7) to reduce the effort to write operators while still demonstrating the concepts of the system (and Embedding Lua in C++ is kinda of fun:).
 
 TinyFlow is a real deep learning system that can run on GPU and CPUs.
 To support the examples, it takes.
