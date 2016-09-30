@@ -1,6 +1,7 @@
 # TinyFlow: Build Your Own DL System in 2K Lines
 
-TinyFlow is an example code for [NNVM](https://github.com/dmlc/nnvm/).
+TinyFlow is  "example code" for [NNVM](https://github.com/dmlc/nnvm/).
+
 It demonstrates how can we build a clean, minimum and powerful computational
 graph based deep learning system with same API as TensorFlow.
 The operator code are implemented with [Torch7](https://github.com/torch/torch7) to reduce the effort to write operators.
@@ -29,6 +30,7 @@ customized learning system easily.
 - Test bed on common reusable modules for DL system. TinyFlow, together with other systems(e.g. MXNet) can be used as testbed on the
   common reusable modules in deep learning to encourage front-end, optimization module and backends
   that are shared across frameworks.
+ - Just for fun :)
 
 
 We believe the Unix Philosophy can building learning system more fun and everyone can be able to build
