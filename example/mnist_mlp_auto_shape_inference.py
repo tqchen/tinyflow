@@ -20,7 +20,7 @@ train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
 
 sess = tf.Session(device='gpu')
 
-# Auromatic variable shape inference API, infers the shape and initialize the weights.
+# Automatic variable shape inference API, infers the shape and initialize the weights.
 known_shape = {x: [100, 28 * 28], label: [100]}
 init_step = []
 for v, name, shape in tf.infer_variable_shapes(
