@@ -20,13 +20,13 @@ As explained in the goal of [NNVM](https://github.com/dmlc/nnvm/),
 it is important to make modular and reusable components for to enable us to build
 customized learning system easily.
 
-- TinyFlow can be a perfect material to teach new student the concepts of deep learning systems.
+- Course Material for teaching DL system. TinyFlow is be a perfect material to teach new student the concepts of deep learning systems.
   - e.g. design homeworks on implementing symbolic differentiation, memory allocation, operator fusion.
-- For learning system researchers, TinyFlow allows easy addition with new system features with
+- Experiment bed for learning system researchers. TinyFlow allows easy addition with new system features with
   the modular design being portable to other system that reuses NNVM.
-- It demonstrates how intermediate representation like NNVM to be able to
+- Showcase of intermediate representation usecase. It demonstrates how intermediate representation like NNVM to be able to
   target multiple front-ends(TF, MXNet) and backends(Torch7, MXNet) with common set of optimizations.
-- TinyFlow, together with other systems(e.g. MXNet) can be used as testbed on the
+- Test bed on common reusable modules for DL system. TinyFlow, together with other systems(e.g. MXNet) can be used as testbed on the
   common reusable modules in deep learning to encourage front-end, optimization module and backends
   that are shared across frameworks.
 
