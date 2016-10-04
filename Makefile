@@ -11,9 +11,6 @@ export LDFLAGS = -pthread -lm
 export CFLAGS =  -std=c++11 -Wall -O2 -msse2  -Wno-unknown-pragmas -funroll-loops\
 	  -fPIC -I${NNVM_PATH}/include -Iinclude -Idmlc-core/include
 
-CFLAGS += -I$(TORCH_PATH)/install/include -I$(TORCH_PATH)/install/include/TH -I$(TORCH_PATH)/install/include/THC/
-LDFLAGS += -L$(TORCH_PATH)/install/lib -lluajit -lluaT -lTH -lTHC
-
 .PHONY: clean all test lint doc
 
 UNAME_S := $(shell uname -s)
@@ -21,9 +18,13 @@ UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S), Darwin)
 	WHOLE_ARCH= -all_load
 	NO_WHOLE_ARCH= -noall_load
+	CFLAGS += -I$(TORCH_PATH)/install/include -I$(TORCH_PATH)/install/include/TH
+	LDFLAGS += -L$(TORCH_PATH)/install/lib -llua -lluaT -lTH
 else
 	WHOLE_ARCH= --whole-archive
 	NO_WHOLE_ARCH= --no-whole-archive
+	CFLAGS += -I$(TORCH_PATH)/install/include -I$(TORCH_PATH)/install/include/TH -I$(TORCH_PATH)/install/include/THC/
+	LDFLAGS += -L$(TORCH_PATH)/install/lib -lluajit -lluaT -lTH -lTHC
 endif
 
 SRC = $(wildcard src/*.cc src/*/*.cc src/*/*/*.cc)
