@@ -142,7 +142,9 @@ NNVM_REGISTER_OP(div)
                     const std::vector<NodeEntry>& ograds){
       NodeEntry n1 = MakeNode("mul", n->attrs.name + "_grad_sub_0",
                               {ograds[0], n->inputs[0]});
-      NodeEntry n2 = MakeNode("mul", n->attrs.name + "_grad_sub_1",
+      NodeEntry n2 = MakeNode("__mul_scalar__", n->attrs.name + "_grad_sub_1",
+                             {n1, {{"scalar", "-1"}}),
+      NodeEntry n2 = MakeNode("mul", n->attrs.name + "_grad_sub_2",
                               {n->inputs[1], n->inputs[1]});
       return std::vector<NodeEntry>{
         MakeNode("__div_symbol__", n->attrs.name + "_grad_0",
@@ -178,7 +180,7 @@ NNVM_REGISTER_OP(exp)
                     const std::vector<NodeEntry>& ograds) {
       return std::vector<NodeEntry>{
         MakeNode("__mul_symbol__", n->attrs.name + "_grad_0",
-                 {ograds[0], n->inputs[0]})
+                 {ograds[0], NodePtr{n, 0, 0}})
       };
 });
 
