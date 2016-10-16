@@ -1,10 +1,10 @@
 // Copyright (c) 2016 by Contributors
 #include <tinyflow/base.h>
 #include <nnvm/pass_functions.h>
-
 #include <memory>
-#include "./torch_util.h"
+#include <functional>
 #include "./op_util.h"
+#include "./torch/torch_util.h"
 
 namespace tinyflow {
 
@@ -47,13 +47,15 @@ struct VarState {
 
 // shared variable map structure
 using VarStateMap = std::unordered_map<std::string, std::shared_ptr<VarState> >;
+// operator executor closures
+using FOpExec = std::function<void()>;
 
 // torch session.
 class TorchSession : public Session {
  public:
   // simple session that binds to one device.
-  explicit TorchSession(const std::string& default_device) {
-    if (default_device.find("gpu") != std::string::npos) {
+  explicit TorchSession(const std::string& config) {
+    if (config.find("gpu") != std::string::npos) {
       default_dev_mask_ = kGPU;
     }
   }
@@ -125,7 +127,7 @@ class TorchExecutor {
   // internal storage space.
   std::vector<LuaRef> storage_pool_;
   // operator executor closures
-  std::vector<LuaRef> op_execs_;
+  std::vector<FOpExec> op_execs_;
   // lua module states of each operator.
   std::vector<LuaRef> op_exec_modules_;
   // The storage space to hold outputs.
@@ -176,7 +178,8 @@ void TorchExecutor::Init(nnvm::Symbol symbol,
   dev_mask_ = default_dev_mask;
   if (dev_mask_ == kGPU) TorchState::ThreadLocalState()->InitGPU();
   graph_.outputs = symbol.outputs;
-  symbol_ = std::move(symbol);
+  symbol_.outputs = graph_.outputs;
+
   // initialize all node auxiliary data structures.
   const Op* assign_op = Op::Get("assign");
   const Op* placeholder_op = Op::Get("placeholder");
@@ -232,7 +235,10 @@ TorchExecutor::Run(const std::unordered_map<std::string, TBlob>& inputs) {
                        data_entry_[idx.entry_id(i, 0)]);
       }
       try {
-        if (!op_execs_[i].is_nil()) op_execs_[i]();
+        // TODO op_execs_[i].nil()?
+        if (op_execs_[i]) {
+          op_execs_[i]();
+        }
       } catch (dmlc::Error e) {
         LOG(INFO) << "error catched in op " << idx[i].source->op()->name;
         throw e;
@@ -590,7 +596,7 @@ void TorchExecutor::SetupOpExecs() {
       }
       op_execs_[nid] = fcreate_nnforward_closure(
           op_exec_modules_[nid], in_array[0], out_array[0], weights);
-      CHECK_EQ(out_array.size(), 1) << "onnly support tensor nn module";
+      CHECK_EQ(out_array.size(), 1) << "only support tensor nn module";
     } else if (inode.source->op() == backward_op) {
       // nn module backward
       CHECK_GE(inode.control_deps.size(), 1);

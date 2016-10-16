@@ -41,7 +41,7 @@ struct TBlob {
   /*! \brief device mask of the corresponding device type */
   int dev_mask{kCPU};
   /*! \brief type of the tensor */
-  int dtype{0};
+  int dtype{kFloat32};
 };
 
 /*!

@@ -2,6 +2,9 @@ TORCH_PATH=${TORCH_HOME}
 
 ROOTDIR = $(CURDIR)
 
+ifndef CUDA_PATH
+	CUDA_PATH = /usr/local/cuda
+endif
 
 ifndef NNVM_PATH
 	NNVM_PATH = $(ROOTDIR)/nnvm
@@ -9,7 +12,7 @@ endif
 
 export LDFLAGS = -pthread -lm
 export CFLAGS =  -std=c++11 -Wall -O2 -msse2  -Wno-unknown-pragmas -funroll-loops\
-	  -fPIC -I${NNVM_PATH}/include -Iinclude -Idmlc-core/include
+	  -fPIC -Iinclude -Idmlc-core/include -I$(NNVM_PATH)/include
 
 .PHONY: clean all test lint doc
 
@@ -18,12 +21,13 @@ UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S), Darwin)
 	WHOLE_ARCH= -all_load
 	NO_WHOLE_ARCH= -noall_load
-	CFLAGS += -I$(TORCH_PATH)/install/include -I$(TORCH_PATH)/install/include/TH
+	CFLAGS  += -I$(TORCH_PATH)/install/include -I$(TORCH_PATH)/install/include/TH
 	LDFLAGS += -L$(TORCH_PATH)/install/lib -llua -lluaT -lTH
 else
 	WHOLE_ARCH= --whole-archive
 	NO_WHOLE_ARCH= --no-whole-archive
-	CFLAGS += -I$(TORCH_PATH)/install/include -I$(TORCH_PATH)/install/include/TH -I$(TORCH_PATH)/install/include/THC/
+	CFLAGS  += -I$(TORCH_PATH)/install/include -I$(TORCH_PATH)/install/include/TH \
+			   -I$(TORCH_PATH)/install/include/THC/
 	LDFLAGS += -L$(TORCH_PATH)/install/lib -lluajit -lluaT -lTH -lTHC
 endif
 
@@ -49,8 +53,8 @@ build/src/%_gpu.o: src/%.cu
 
 lib/libtinyflow.so: $(ALL_DEP)
 	@mkdir -p $(@D)
-	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o, $^) $(LDFLAGS) \
-	-Wl,${WHOLE_ARCH} $(filter %.a, $^) -Wl,${NO_WHOLE_ARCH}
+	$(CXX) $(CFLAGS) -shared -o $@ $(filter %.o, $^) \
+	-Wl,${WHOLE_ARCH} $(filter %.a, $^) -Wl,${NO_WHOLE_ARCH} $(LDFLAGS)
 
 $(NNVM_PATH)/lib/libnnvm.a:
 	+ cd $(NNVM_PATH); make lib/libnnvm.a; cd $(ROOTDIR)
