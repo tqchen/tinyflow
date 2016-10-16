@@ -43,18 +43,17 @@ inline bool ZeroType(const NodeAttrs& attrs,
 }
 
 
+NNVM_REGISTER_OP_GROUP(ElementwiseOpAttr)
+.set_attr<bool>("IsElementWise", true)
+.set_attr<FInferShape>("FInferShape", SameShape);
+
+
 NNVM_REGISTER_OP(zeros)
 .describe("zeros")
 .set_num_inputs(0)
 .set_attr_parser(ParamParser<ZeroParam>)
 .set_attr<FInferShape>("FInferShape", ZeroShape)
-.set_attr<FInferType>("FInferType", ZeroType)
-.set_attr<FLuaCompute>(
-    "FLuaCompute", R"(
-function(x, y, kwarg)
-  return function() y[1]:fill(0) end
-end
-)");
+.set_attr<FInferType>("FInferType", ZeroType);
 
 
 NNVM_REGISTER_OP(ones)
@@ -62,15 +61,7 @@ NNVM_REGISTER_OP(ones)
 .set_num_inputs(0)
 .set_attr_parser(ParamParser<ZeroParam>)
 .set_attr<FInferShape>("FInferShape", ZeroShape)
-.set_attr<FInferType>("FInferType", ZeroType)
-.set_attr<FLuaCompute>(
-    "FLuaCompute", R"(
-function(x, y, kwarg)
-  return function()
-    y[1]:fill(1)
-  end
-end
-)");
+.set_attr<FInferType>("FInferType", ZeroType);
 
 
 NNVM_REGISTER_OP(normal)
@@ -78,83 +69,56 @@ NNVM_REGISTER_OP(normal)
 .set_num_inputs(0)
 .set_attr_parser(ParamParser<ZeroParam>)
 .set_attr<FInferShape>("FInferShape", ZeroShape)
-.set_attr<FInferType>("FInferType", ZeroType)
-.set_attr<FLuaCompute>(
-    "FLuaCompute", R"(
-function(x, y, kwarg)
-  return function()
-    local scale = 1
-    if kwarg.stdev ~= nil then
-      scale = tonumber(kwarg.stdev)
-    end
-    y[1]:copy(torch.randn(y[1]:size()) * scale)
-  end
-end
-)");
+.set_attr<FInferType>("FInferType", ZeroType);
 
 
 NNVM_REGISTER_OP(equal)
 .describe("Equal comparitor")
 .set_num_inputs(2)
-.set_attr<FInferShape>("FInferShape", SameShape)
-.set_attr<FLuaCompute>(
-        "FLuaCompute", R"(
-function(x, y, kwarg)
-  return function()
-    y[1]:copy(torch.eq(x[1], x[2]))
-  end
-end
-)");
+.set_attr<FInferShape>("FInferShape", SameShape);
 
 
 NNVM_REGISTER_OP(ones_like)
 .describe("ones_like")
 .set_num_inputs(1)
-.set_attr<FInferShape>("FInferShape", SameShape)
-.set_attr<FLuaCompute>(
-    "FLuaCompute", R"(
-function(x, y, kwarg)
-  return function()
-    y[1]:fill(1)
-  end
-end
-)");
+.set_attr<FInferShape>("FInferShape", SameShape);
 
 
 NNVM_REGISTER_OP(__add_symbol__)
 .describe("add two data together")
 .set_num_inputs(2)
-.set_attr<FInferShape>("FInferShape", SameShape)
+.include("ElementwiseOpAttr")
 .set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
 .set_attr<FGradient>(
     "FGradient", [](const NodePtr& n,
                     const std::vector<NodeEntry>& ograds){
       return std::vector<NodeEntry>{ograds[0], ograds[0]};
-    })
-.set_attr<FLuaCompute>(
-    "FLuaCompute", R"(
-function(x, y, kwarg)
-  return function()
-    torch.add(y[1], x[1], x[2])
-  end
-end
-)");
+});
+
+
+NNVM_REGISTER_OP(__sub_symbol__)
+.describe("do subtract")
+.set_num_inputs(2)
+.include("ElementwiseOpAttr")
+.set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
+.set_attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds){
+      return std::vector<NodeEntry>{
+        MakeNode("__mul_scalar__", n->attrs.name + "_grad_0",
+                 {ograds[0]}, {{"scalar", "1"}}),
+        MakeNode("__mul_scalar__", n->attrs.name + "_grad_1",
+                 {ograds[0]}, {{"scalar", "-1"}}),
+      };
+});
 
 
 NNVM_REGISTER_OP(mul)
 .add_alias("__mul_symbol__")
 .describe("add two data together")
 .set_num_inputs(2)
-.set_attr<FInferShape>("FInferShape", SameShape)
+.include("ElementwiseOpAttr")
 .set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
-.set_attr<FLuaCompute>(
-    "FLuaCompute", R"(
-function(x, y, kwarg)
-  return function()
-    torch.cmul(y[1], x[1], x[2])
-  end
-end
-)")
 .set_attr<FGradient>(
     "FGradient", [](const NodePtr& n,
                     const std::vector<NodeEntry>& ograds){
@@ -163,63 +127,69 @@ end
                  {ograds[0], n->inputs[1]}),
         MakeNode("mul", n->attrs.name + "_grad_1",
                  {ograds[0], n->inputs[0]})
-            };
-    });
+      };
+});
 
 
 NNVM_REGISTER_OP(div)
 .add_alias("__div_symbol__")
 .describe("do division")
 .set_num_inputs(2)
-.set_attr<FInferShape>("FInferShape", SameShape)
+.include("ElementwiseOpAttr")
 .set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
-.set_attr<FLuaCompute>(
-    "FLuaCompute", R"(
-function(x, y, kwarg)
-  return function()
-    torch.cdiv(y[1], x[1], x[2])
-  end
-end
-)");
+.set_attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds){
+      NodeEntry n1 = MakeNode("mul", n->attrs.name + "_grad_sub_0",
+                              {ograds[0], n->inputs[0]});
+      NodeEntry n2 = MakeNode("__mul_scalar__", n->attrs.name + "_grad_sub_1",
+                             {n1, {{"scalar", "-1"}}),
+      NodeEntry n2 = MakeNode("mul", n->attrs.name + "_grad_sub_2",
+                              {n->inputs[1], n->inputs[1]});
+      return std::vector<NodeEntry>{
+        MakeNode("__div_symbol__", n->attrs.name + "_grad_0",
+                 {ograds[0], n->inputs[1]}),
+        MakeNode("__div_symbol__", n->attrs.name + "_grad_1",
+                 {n1, n2})
+      };
+});
 
 
 NNVM_REGISTER_OP(__mul_scalar__)
 .describe("Multiply symbol with scalar")
 .set_num_inputs(1)
-.set_attr<FInferShape>("FInferShape", SameShape)
+.include("ElementwiseOpAttr")
 .set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
-.set_attr<FLuaCompute>(
-    "FLuaCompute", R"(
-function(x, y, kwarg)
-  local scalar = tonumber(kwarg.scalar)
-  return function()
-    torch.mul(y[1], x[1], scalar)
-  end
-end
-)")
 .set_attr<FGradient>(
     "FGradient", [](const NodePtr& n,
                     const std::vector<NodeEntry>& ograds){
       return std::vector<NodeEntry>{
         MakeNode("__mul_scalar__", n->attrs.name + "_grad_0",
                  {ograds[0]}, {{"scalar", n->attrs.dict["scalar"]}}),
-            };
-    });
+      };
+});
+
+
+NNVM_REGISTER_OP(exp)
+.describe("take elemtnwise exponation")
+.set_num_inputs(1)
+.include("ElementwiseOpAttr")
+.set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
+.set_attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds) {
+      return std::vector<NodeEntry>{
+        MakeNode("__mul_symbol__", n->attrs.name + "_grad_0",
+                 {ograds[0], NodePtr{n, 0, 0}})
+      };
+});
 
 
 NNVM_REGISTER_OP(log)
 .describe("take elemtnwise logarithm")
 .set_num_inputs(1)
-.set_attr<FInferShape>("FInferShape", SameShape)
+.include("ElementwiseOpAttr")
 .set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
-.set_attr<FLuaCompute>(
-    "FLuaCompute", R"(
-function(x, y, kwarg)
-  return function()
-    torch.log(y[1], x[1])
-  end
-end
-)")
 .set_attr<FGradient>(
     "FGradient", [](const NodePtr& n,
                     const std::vector<NodeEntry>& ograds) {
@@ -227,7 +197,7 @@ end
         MakeNode("__div_symbol__", n->attrs.name + "_grad_0",
                  {ograds[0], n->inputs[0]})
       };
-    });
+});
 
 
 NNVM_REGISTER_OP(matmul)
@@ -246,14 +216,6 @@ NNVM_REGISTER_OP(matmul)
       SHAPE_ASSIGN(oshape->at(0), target);
       return true;
     })
-.set_attr<FLuaCompute>(
-    "FLuaCompute", R"(
-function(x, y, kwarg)
-  return function()
-    torch.mm(y[1], x[1], x[2])
-  end
-end
-)")
 .set_attr<FGradient>(
     "FGradient", [](const NodePtr& n,
                     const std::vector<NodeEntry>& ograds) {
@@ -266,20 +228,6 @@ end
 NNVM_REGISTER_OP(_matmul_backward)
 .set_num_inputs(3)
 .set_num_outputs(2)
-.set_attr<FLuaCompute>(
-    "FLuaCompute", R"(
-function(x, y, kwarg)
-  local gradOutput = x[1]
-  local lhs = x[2]
-  local rhs = x[3]
-  local gradLhs = y[1]
-  local gradRhs = y[2]
-  return function()
-    torch.mm(gradRhs, lhs:t(), gradOutput)
-    torch.mm(gradLhs, gradOutput, rhs:t())
-  end
-end
-)")
 .set_attr<FBackwardOutToInIndex>(
     "FBackwardOutToInIndex", [](const NodeAttrs& attrs) {
       return std::vector<uint32_t>{0, 1};
@@ -333,29 +281,6 @@ NNVM_REGISTER_OP(reduce_sum)
 .set_attr_parser(ParamParser<ReduceParam>)
 .set_num_inputs(1)
 .set_attr<FInferShape>("FInferShape", ReduceShape)
-.set_attr<FLuaCompute>(
-    "FLuaCompute", R"(
-function(x, y, kwarg)
-  local rhs = x[1]
-  local lhs = y[1]
-  if kwarg.reduction_indices == nil then
-    rhs = rhs:view(rhs:nElement())
-    return function()
-      torch.sum(lhs, rhs, 1)
-    end
-  else
-    local axis = nn_parse_tuple(kwarg.reduction_indices)
-    table.sort(axis)
-    local k = #axis
-    return function()
-      for i = 1, (k - 1) do
-        rhs = torch.sum(rhs, axis[k - i + 1] + 1)
-      end
-      torch.sum(lhs, rhs, axis[1] + 1)
-    end
-  end
-end
-)")
 .set_attr<FGradient>(
     "FGradient", [](const NodePtr& n,
                     const std::vector<NodeEntry>& ograds) {
@@ -369,29 +294,6 @@ NNVM_REGISTER_OP(reduce_mean)
 .set_attr_parser(ParamParser<ReduceParam>)
 .set_num_inputs(1)
 .set_attr<FInferShape>("FInferShape", ReduceShape)
-.set_attr<FLuaCompute>(
-    "FLuaCompute", R"(
-function(x, y, kwarg)
-  local rhs = x[1]
-  local lhs = y[1]
-  if kwarg.reduction_indices == nil then
-    rhs = rhs:view(rhs:nElement())
-    return function()
-      torch.mean(lhs, rhs, 1)
-    end
-  else
-    local axis = nn_parse_tuple(kwarg.reduction_indices)
-    table.sort(axis)
-    local k = #axis
-    return function()
-      for i = 1, (k - 1) do
-        rhs = torch.mean(rhs, axis[k - i + 1] + 1)
-      end
-      torch.mean(lhs, rhs, axis[1] + 1)
-    end
-  end
-end
-)")
 .set_attr<FGradient>(
     "FGradient", [](const NodePtr& n,
                     const std::vector<NodeEntry>& ograds) {
@@ -414,74 +316,18 @@ NNVM_REGISTER_OP_GROUP(ReduceBackwardIndeAttr)
 NNVM_REGISTER_OP(_reduce_sum_backward)
 .set_num_inputs(1)
 .set_num_outputs(1)
-.set_attr<FLuaCompute>(
-    "FLuaCompute", R"(
-function(x, y, kwarg)
-  local rhs = x[1]
-  local lhs = y[1]
-  if kwarg.reduction_indices == nil then
-    lhs = lhs:view(lhs:nElement())
-    rhs = rhs:expandAs(lhs)
-  else
-    local axis = nn_parse_tuple(kwarg.reduction_indices)
-    local vshape = lhs:size()
-    for i = 1, #axis do
-      vshape[axis[i] + 1] = 1
-    end
-    rhs = rhs:view(vshape):expandAs(lhs)
-  end
-  return function()
-    lhs:copy(rhs)
-  end
-end
-)")
 .include("ReduceBackwardIndeAttr");
 
 
 NNVM_REGISTER_OP(_reduce_mean_backward)
 .set_num_inputs(1)
 .set_num_outputs(1)
-.set_attr<FLuaCompute>(
-    "FLuaCompute", R"(
-function(x, y, kwarg)
-  local rhs = x[1]
-  local lhs = y[1]
-  local scale = 1
-  if kwarg.reduction_indices == nil then
-    lhs = lhs:view(lhs:nElement())
-    rhs = rhs:expandAs(lhs)
-    scale = lhs:nElement()
-  else
-    local axis = nn_parse_tuple(kwarg.reduction_indices)
-    local vshape = lhs:size()
-    for i = 1, #axis do
-      scale = scale * vshape[axis[i] + 1]
-      vshape[axis[i] + 1] = 1
-    end
-    rhs = rhs:view(vshape):expandAs(lhs)
-  end
-  return function()
-    torch.div(lhs, rhs, scale)
-  end
-end
-)")
 .include("ReduceBackwardIndeAttr");
+
 
 NNVM_REGISTER_OP(_argmax)
 .set_attr_parser(ParamParser<ReduceParam>)
 .set_num_inputs(1)
-.set_attr<FInferShape>("FInferShape", ReduceShape)
-.set_attr<FLuaCompute>(
-    "FLuaCompute", R"(
-function(x, y, kwarg)
-  local rhs = x[1]
-  local lhs = y[1]
-  local axis = nn_parse_tuple(kwarg.reduction_indices)
-  return function()
-    local mx, ind = torch.max(rhs, axis[1] + 1)
-    torch.add(lhs, ind:typeAs(lhs), -1)
-  end
-end
-)");
+.set_attr<FInferShape>("FInferShape", ReduceShape);
 
 }  // namespace tinyflow
