@@ -109,12 +109,6 @@ NNVM_REGISTER_OP(softmax)
 .describe("Softmax operation")
 .set_num_inputs(1)
 .include("nn_module")
-.set_attr<FLuaCreateNNModule>(
-    "FLuaCreateNNModule", R"(
-function(ishape, kwarg)
-  return nn.SoftMax()
-end
-)")
 .set_attr<FInferShape>("FInferShape", SameShape);
 
 
@@ -122,12 +116,6 @@ NNVM_REGISTER_OP(relu)
 .describe("Relu operation")
 .set_num_inputs(1)
 .include("nn_module")
-.set_attr<FLuaCreateNNModule>(
-    "FLuaCreateNNModule", R"(
-function(ishape, kwarg)
-  return nn.ReLU()
-end
-)")
 .set_attr<FInferShape>("FInferShape", SameShape)
 .set_attr<bool>("TBackwardNeedOutputs", true);
 
@@ -136,12 +124,6 @@ NNVM_REGISTER_OP(tanh)
 .describe("Tanh operation")
 .set_num_inputs(1)
 .include("nn_module")
-.set_attr<FLuaCreateNNModule>(
-    "FLuaCreateNNModule", R"(
-function(ishape, kwarg)
-  return nn.Tanh()
-end
-)")
 .set_attr<FInferShape>("FInferShape", SameShape);
 
 
@@ -193,17 +175,6 @@ NNVM_REGISTER_OP(linear)
     }
   })
 .include("nn_module")
-.set_attr<FLuaCreateNNModule>(
-    "FLuaCreateNNModule", R"(
-function(ishape, kwarg)
-  local wshape = ishape[2]
-  local m = nn.Linear(wshape[2], wshape[1])
-  if #ishape == 2 then
-    m = m:noBias()
-  end
-  return m
-end
-)")
 .set_attr<FInferShape>("FInferShape", LinearShape);
 
 
@@ -273,37 +244,6 @@ NNVM_REGISTER_OP(conv2d)
   })
 .set_attr_parser(ParamParser<ConvPoolParam>)
 .include("nn_module")
-.set_attr<FLuaCreateNNModule>(
-    "FLuaCreateNNModule", R"(
-function(ishape, kwarg)
-  local dshape = ishape[2]
-  local fshape = ishape[2]
-  local outPlane = fshape[1]
-  local inPlane = fshape[2]
-  local kH = fshape[3]
-  local kW = fshape[4]
-  local inH = dshape[3]
-  local inW = dshape[4]
-  local stride = nn_parse_tuple(kwarg.strides, {1,1,1,1})
-  local dH = stride[2]
-  local dW = stride[3]
-  local padH = 0
-  local padW = 0
-
-  assert(kwarg.data_format == 'NCHW')
-  if kwarg.padding == 'SAME' then
-    padW = math.floor((kW - 1) / 2)
-    padH = math.floor((kH - 1) / 2)
-  end
-  local m = nn.SpatialConvolution(
-    inPlane, outPlane,
-    kW, kH, dW, dH, padW, padH)
-  if #ishape == 2 then
-    m = m:noBias()
-  end
-  return m
-end
-)")
 .set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
     if (dmlc::get<ConvPoolParam>(attrs.parsed).no_bias) {
       return std::vector<std::string>{"data", "weight"};
@@ -320,54 +260,18 @@ NNVM_REGISTER_OP(max_pool)
 .set_num_inputs(1)
 .set_attr_parser(ParamParser<ConvPoolParam>)
 .include("nn_module")
-.set_attr<FLuaCreateNNModule>(
-    "FLuaCreateNNModule", R"(
-function(ishape, kwarg)
-  local ksize = nn_parse_tuple(kwarg.ksize)
-  local stride = nn_parse_tuple(kwarg.strides, {1,1,1,1})
-  local kH = ksize[2]
-  local kW = ksize[3]
-  local dH = stride[2]
-  local dW = stride[3]
-  local padH = 0
-  local padW = 0
-  assert(kwarg.data_format == 'NCHW')
-  if kwarg.padding == 'SAME' then
-    padW = math.floor((kW - 1) / 2)
-    padH = math.floor((kH - 1) / 2)
-  end
-  return nn.SpatialMaxPooling(kW, kH, dW, dH, padW, padH)
-end
-)")
 .set_attr<FInferShape>("FInferShape", ConvPoolShape);
 
 
 NNVM_REGISTER_OP(mean_sparse_softmax_cross_entropy_with_logits)
 .describe("Softmax cross entropy given logit and label")
 .set_num_inputs(2)
-.include("nn_criterion")
-.set_attr<FLuaCreateNNModule>(
-    "FLuaCreateNNModule", R"(
-function(ishape, kwarg)
-  return nn_zero_index_target_criterion(
-    nn.CrossEntropyCriterion())
-end
-)");
+.include("nn_criterion");
 
-const char* LuaReshape = R"(
-function(x, y, kwarg)
-  if x[1]:storage() == y[1]:storage() then
-    return function() end
-  else
-    return function() y[1]:copy(x[1]:resizeAs(y[1])) end
-  end
-end
-)";
 
 NNVM_REGISTER_OP(flatten_layer)
 .describe("Flatten to 2D")
 .set_num_inputs(1)
-.set_attr<FLuaCompute>("FLuaCompute", LuaReshape)
 .set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
 .set_attr<FInferShape>(
     "FInferShape", [](const NodeAttrs& attrs,
@@ -388,7 +292,6 @@ NNVM_REGISTER_OP(flatten_layer)
 
 NNVM_REGISTER_OP(_flatten_backward)
 .set_num_inputs(1)
-.set_attr<FLuaCompute>("FLuaCompute", LuaReshape)
 .set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
 .set_attr<FBackwardOutToInIndex>(
     "FBackwardOutToInIndex", [](const NodeAttrs& attrs) {
