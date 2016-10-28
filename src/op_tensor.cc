@@ -3,6 +3,7 @@
 #include <tinyflow/base.h>
 #include <dmlc/parameter.h>
 #include <nnvm/op_attr_types.h>
+#include <cmath>
 #include <utility>
 #include "./op_util.h"
 
@@ -55,6 +56,10 @@ NNVM_REGISTER_OP(zeros)
 .set_attr<FInferShape>("FInferShape", ZeroShape)
 .set_attr<FInferType>("FInferType", ZeroType);
 
+NNVM_REGISTER_OP(zeros_like)
+.describe("zeros_like")
+.set_num_inputs(1)
+.set_attr<FInferShape>("FInferShape", SameShape);
 
 NNVM_REGISTER_OP(ones)
 .describe("ones")
@@ -62,6 +67,12 @@ NNVM_REGISTER_OP(ones)
 .set_attr_parser(ParamParser<ZeroParam>)
 .set_attr<FInferShape>("FInferShape", ZeroShape)
 .set_attr<FInferType>("FInferType", ZeroType);
+
+
+NNVM_REGISTER_OP(ones_like)
+.describe("ones_like")
+.set_num_inputs(1)
+.set_attr<FInferShape>("FInferShape", SameShape);
 
 
 NNVM_REGISTER_OP(normal)
@@ -78,12 +89,6 @@ NNVM_REGISTER_OP(equal)
 .set_attr<FInferShape>("FInferShape", SameShape);
 
 
-NNVM_REGISTER_OP(ones_like)
-.describe("ones_like")
-.set_num_inputs(1)
-.set_attr<FInferShape>("FInferShape", SameShape);
-
-
 NNVM_REGISTER_OP(__add_symbol__)
 .describe("add two data together")
 .set_num_inputs(2)
@@ -93,6 +98,18 @@ NNVM_REGISTER_OP(__add_symbol__)
     "FGradient", [](const NodePtr& n,
                     const std::vector<NodeEntry>& ograds){
       return std::vector<NodeEntry>{ograds[0], ograds[0]};
+});
+
+
+NNVM_REGISTER_OP(__add_scalar__)
+.describe("add symbol with scalar")
+.set_num_inputs(1)
+.include("ElementwiseOpAttr")
+.set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
+.set_attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds){
+      return std::vector<NodeEntry>{ograds[0]};
 });
 
 
@@ -110,6 +127,32 @@ NNVM_REGISTER_OP(__sub_symbol__)
         MakeNode("__mul_scalar__", n->attrs.name + "_grad_1",
                  {ograds[0]}, {{"scalar", "-1"}}),
       };
+});
+
+
+NNVM_REGISTER_OP(__sub_scalar__)
+.describe("subtract symbol with scalar")
+.set_num_inputs(1)
+.include("ElementwiseOpAttr")
+.set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
+.set_attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds){
+      return std::vector<NodeEntry>{ograds[0]};
+});
+
+
+NNVM_REGISTER_OP(__rsub_scalar__)
+.describe("subtract scalar with symbol")
+.set_num_inputs(1)
+.include("ElementwiseOpAttr")
+.set_attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds){
+      return std::vector<NodeEntry>{
+        MakeNode("__mul_scalar__", n->attrs.name + "_grad_1",
+                 {ograds[0]}, {{"scalar", "-1"}}),
+        };
 });
 
 
@@ -131,8 +174,23 @@ NNVM_REGISTER_OP(mul)
 });
 
 
-NNVM_REGISTER_OP(div)
-.add_alias("__div_symbol__")
+NNVM_REGISTER_OP(__mul_scalar__)
+.describe("Multiply symbol with scalar")
+.set_num_inputs(1)
+.include("ElementwiseOpAttr")
+.set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
+.set_attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds){
+      return std::vector<NodeEntry>{
+        MakeNode("__mul_scalar__", n->attrs.name + "_grad_0",
+                 {ograds[0]}, {{"scalar", n->attrs.dict["scalar"]}}),
+      };
+});
+
+
+NNVM_REGISTER_OP(__div_symbol__)
+.add_alias("div")
 .describe("do division")
 .set_num_inputs(2)
 .include("ElementwiseOpAttr")
@@ -155,8 +213,8 @@ NNVM_REGISTER_OP(div)
 });
 
 
-NNVM_REGISTER_OP(__mul_scalar__)
-.describe("Multiply symbol with scalar")
+NNVM_REGISTER_OP(__div_scalar__)
+.describe("division symbol with scalar")
 .set_num_inputs(1)
 .include("ElementwiseOpAttr")
 .set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
@@ -164,7 +222,7 @@ NNVM_REGISTER_OP(__mul_scalar__)
     "FGradient", [](const NodePtr& n,
                     const std::vector<NodeEntry>& ograds){
       return std::vector<NodeEntry>{
-        MakeNode("__mul_scalar__", n->attrs.name + "_grad_0",
+        MakeNode("__div_scalar__", n->attrs.name + "_grad_0",
                  {ograds[0]}, {{"scalar", n->attrs.dict["scalar"]}}),
       };
 });
@@ -196,6 +254,73 @@ NNVM_REGISTER_OP(log)
       return std::vector<NodeEntry>{
         MakeNode("__div_symbol__", n->attrs.name + "_grad_0",
                  {ograds[0], n->inputs[0]})
+      };
+});
+
+
+NNVM_REGISTER_OP(sqrt)
+.describe("return square root of input")
+.set_num_inputs(1)
+.include("ElementwiseOpAttr")
+.set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
+.set_attr<FGradient>(
+    // 1 / (2 * sqrt(x)) == 1 / (2 * y)
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds) {
+      NodeEntry n1 = MakeNode("__mul_scalar__", n->attrs.name + "_grad_sub_1",
+                              {NodeEntry{n, 0, 0}}, {{"scalar", "2"}});
+      return std::vector<NodeEntry>{
+        MakeNode("__div_symbol__", n->attrs.name + "_grad_0",
+                 {ograds[0], n1})
+      };
+});
+
+
+NNVM_REGISTER_OP(__pow_symbol__)
+.add_alias("pow")
+.describe("take elmtnwise power between two tensor")
+.set_num_inputs(2)
+.include("ElementwiseOpAttr")
+.set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
+.set_attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds) {
+      // lhs: b*pow(a, b-1), rhs: pow(a, b)*ln(a)
+      NodeEntry n0 = MakeNode("__add_scalar__", n->attrs.name + "_grad_sub_0",
+                              {n->inputs[1]}, {{"scalar", "-1"}});
+      NodeEntry n1 = MakeNode("pow", n->attrs.name + "_grad_sub_1",
+                              {n->inputs[0], n0});
+      NodeEntry d_lhs = MakeNode("mul", n->attrs.name + "_grad_sub_2",
+                                 {n1, n->inputs[1]});
+      NodeEntry n2 = MakeNode("log", n->attrs.name + "_grad_sub_3",
+                              {n->inputs[0]});
+      NodeEntry d_rhs = MakeNode("mul", n->attrs.name + "_grad_sub_4",
+                                 {NodeEntry{n, 0, 0}, n2});
+      return std::vector<NodeEntry>{
+        MakeNode("__mul_symbol__", n->attrs.name + "_grad_0",
+                 {ograds[0], d_lhs}),
+        MakeNode("__mul_symbol__", n->attrs.name + "_grad_1",
+                 {ograds[0], d_rhs})
+      };
+
+});
+
+
+NNVM_REGISTER_OP(__rpow_scalar__)
+.describe("take elmtnwise power between a number and a tensor")
+.set_num_inputs(1)
+.include("ElementwiseOpAttr")
+.set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
+.set_attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds) {
+      // pow(m, x) * ln(m)
+      double num = std::stod(n->attrs.dict["scalar"]);
+      NodeEntry n0 = MakeNode("__mul_scalar__", n->attrs.name + "_grad_sub_4",
+                              {NodeEntry{n, 0, 0}}, {{"scalar", std::to_string(std::log(num))}});
+      return std::vector<NodeEntry>{
+        MakeNode("__mul_symbol__", n->attrs.name + "_grad_0",
+                 {ograds[0], n0})
       };
 });
 

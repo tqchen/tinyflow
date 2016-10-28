@@ -45,6 +45,7 @@ struct VarState {
   }
 };
 
+
 // shared variable map structure
 using VarStateMap = std::unordered_map<std::string, std::shared_ptr<VarState> >;
 // operator executor closures
@@ -91,6 +92,8 @@ class TorchExecutor {
 
  private:
   // setup the executor space.
+  void SetupAuxiliaryMembers();
+  void ClearAuxiliaryMembers();
   void Setup(const std::unordered_map<std::string, TBlob>& inputs);
   void SetupShapeDType(const std::unordered_map<std::string, TBlob>& inputs, bool* need_redo_infer);
   void SetupStorage();
@@ -98,6 +101,8 @@ class TorchExecutor {
   // internal symbol and graph
   nnvm::Symbol symbol_;
   nnvm::Graph graph_;
+  // variable states map.
+  VarStateMap* var_states_;
   // shape vector in graph attribute
   const ShapeVector* node_shape_{nullptr};
   // type vector in graph attribute
@@ -179,7 +184,11 @@ void TorchExecutor::Init(nnvm::Symbol symbol,
   if (dev_mask_ == kGPU) TorchState::ThreadLocalState()->InitGPU();
   graph_.outputs = symbol.outputs;
   symbol_.outputs = graph_.outputs;
+  var_states_ = states;
+  SetupAuxiliaryMembers();
+}
 
+void TorchExecutor::SetupAuxiliaryMembers() {
   // initialize all node auxiliary data structures.
   const Op* assign_op = Op::Get("assign");
   const Op* placeholder_op = Op::Get("placeholder");
@@ -195,10 +204,10 @@ void TorchExecutor::Init(nnvm::Symbol symbol,
     auto& inode = idx[nid];
     if (inode.source->is_variable()) {
       const std::string& key = inode.source->attrs.name;
-      if (states->count(key) == 0) {
-        (*states)[key] = std::make_shared<VarState>();
+      if (var_states_->count(key) == 0) {
+        (*var_states_)[key] = std::make_shared<VarState>();
       }
-      node_states_[nid] = states->at(key).get();
+      node_states_[nid] = var_states_->at(key).get();
       if (read_count[nid] != 0 || assign_count[nid] == 0) {
         read_var_nids_.push_back(nid);
       }
@@ -219,6 +228,14 @@ void TorchExecutor::Init(nnvm::Symbol symbol,
       }
     }
   }
+}
+
+void TorchExecutor::ClearAuxiliaryMembers() {
+  placeholder_nids_.clear();
+  placeholder_tblobs_.clear();
+  assign_var_nids_.clear();
+  read_var_nids_.clear();
+  node_states_.clear();
 }
 
 const std::vector<TBlob>&
@@ -325,8 +342,10 @@ void TorchExecutor::SetupShapeDType(
 
   for (uint32_t nid : read_var_nids_) {
     VarState* state = node_states_[nid];
-    CHECK(state->initialized())
-        << "Attempt to execute a graph un-initialized Variable";
+    if (!state->initialized()) {
+        LOG(WARNING) << "Attempt to execute a graph un-initialized Variable";
+        continue;
+    }
     new_shape[idx.entry_id(nid, 0)] = state->blob.shape;
     new_dtype[idx.entry_id(nid, 0)] = state->blob.dtype;
   }

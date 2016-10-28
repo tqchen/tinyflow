@@ -20,9 +20,9 @@ def _get_numpy(cptr, dtype, shape):
         return None
 
 class Session(object):
-    def __init__(self, device='cpu'):
+    def __init__(self, config='cpu'):
         handle = SessionHandle()
-        check_call(_LIB.NNSessionCreate(_ctypes.byref(handle), c_str(device)))
+        check_call(_LIB.NNSessionCreate(_ctypes.byref(handle), c_str(config)))
         self.handle = handle
 
     def __del__(self):

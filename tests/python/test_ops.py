@@ -11,9 +11,60 @@ def check_ewise(ufunc):
     az = sess.run(z, feed_dict={x:ax, y:ay})
     np.testing.assert_almost_equal(az, ufunc(ax, ay))
 
+def check_ewise_scalar(ufunc):
+    x = tf.placeholder(tf.float32)
+    y = 10;
+    z = ufunc(x, y)
+    ax = np.ones((2, 3))
+    sess = tf.Session()
+    az = sess.run(z, feed_dict={x:ax})
+    np.testing.assert_almost_equal(az, ufunc(ax, y))
+
+def check_ewise_rscalar(ufunc):
+    x = 10;
+    y = tf.placeholder(tf.float32)
+    z = ufunc(x, y)
+    ay = np.ones((2, 3))
+    sess = tf.Session()
+    az = sess.run(z, feed_dict={y:ay})
+    np.testing.assert_almost_equal(az, ufunc(x, ay))
+
 def test_ewise():
     check_ewise(lambda x, y: x+y)
+    check_ewise(lambda x, y: x-y)
     check_ewise(lambda x, y: x*y)
+    check_ewise(lambda x, y: x/y)
+    check_ewise(lambda x, y: x**y)
+    check_ewise_scalar(lambda x, y: x+y)
+    check_ewise_scalar(lambda x, y: x-y)
+    check_ewise_scalar(lambda x, y: x*y)
+    check_ewise_scalar(lambda x, y: x/y)
+    check_ewise_rscalar(lambda x, y: x-y)
+    check_ewise_rscalar(lambda x, y: x**y)
+
+def test_exp():
+    x = tf.placeholder(tf.float32)
+    y = tf.exp(x)
+    ax = np.ones((2, 3)) * 2
+    sess = tf.Session()
+    ay = sess.run(y, feed_dict={x:ax})
+    np.testing.assert_almost_equal(ay, np.exp(ax))
+
+def test_log():
+    x = tf.placeholder(tf.float32)
+    y = tf.log(x)
+    ax = np.ones((2, 3)) * 2
+    sess = tf.Session()
+    ay = sess.run(y, feed_dict={x:ax})
+    np.testing.assert_almost_equal(ay, np.log(ax))
+
+def test_sqrt():
+    x = tf.placeholder(tf.float32)
+    y = tf.sqrt(x)
+    ax = np.ones((2, 3)) * 2
+    sess = tf.Session()
+    ay = sess.run(y, feed_dict={x:ax})
+    np.testing.assert_almost_equal(ay, np.sqrt(ax))
 
 def test_softmax():
     x = tf.placeholder(tf.float32)
@@ -77,10 +128,12 @@ def test_argmax():
 
 if __name__ == "__main__":
     test_ewise()
+    test_exp()
+    test_log()
+    test_sqrt()
     test_sum()
     test_mean()
     test_matmul()
-    test_bias_add()
     test_softmax()
     test_argmax()
     pass

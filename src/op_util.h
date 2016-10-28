@@ -43,7 +43,10 @@ inline bool SameShape(const NodeAttrs& attrs,
   if (def_v.ndim() == 0) {
     for (TShape& pshape : *ishape) {
       if (pshape.ndim() != 0) {
-        def_v = pshape; break;
+        def_v = pshape;
+        if (pshape.ndim() != 1 || pshape[0] != 1) {
+          break;
+        }
       }
     }
   }
@@ -53,6 +56,9 @@ inline bool SameShape(const NodeAttrs& attrs,
     SHAPE_ASSIGN(pshape, def_v);
   }
   for (TShape& pshape : *ishape) {
+    if (pshape.ndim() == 1 && pshape[0] == 1) {
+      continue;
+    }
     SHAPE_ASSIGN(pshape, def_v);
   }
   return true;
