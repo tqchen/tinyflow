@@ -21,9 +21,9 @@ fc2 = tf.nn.linear(tanh3, num_hidden=10, name="fc2")
 # define loss
 label = tf.placeholder(tf.float32)
 cross_entropy = tf.nn.mean_sparse_softmax_cross_entropy_with_logits(fc2, label)
-train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
+train_step = tf.train.AdamOptimizer(0.005).minimize(cross_entropy)
 
-sess = tf.Session(device='gpu')
+sess = tf.Session(config='gpu')
 
 # Auromatic variable shape inference API, infers the shape and initialize the weights.
 known_shape = {x: [100, 1, 28, 28], label: [100]}
@@ -34,6 +34,7 @@ for v, name, shape in tf.infer_variable_shapes(
     init_step.append(tf.assign(v, tf.normal(shape, stdev)))
     print("shape[%s]=%s" % (name, str(shape)))
 sess.run(init_step)
+sess.run(tf.initialize_all_variables())
 
 # get the mnist dataset
 mnist = get_mnist(flatten=False, onehot=False)
