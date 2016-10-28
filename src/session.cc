@@ -294,10 +294,10 @@ void TorchExecutor::SetupShapeDType(
       CHECK(state != nullptr);
       CHECK(state->initialized())
           << "Attempt to execute a graph un-initialized Variable";
-      if (node_shape_->at(nid) != state->blob.shape) {
+      if (node_shape_->at(idx.entry_id(nid, 0)) != state->blob.shape) {
         need_redo_infer = true; break;
       }
-      if (node_dtype_->at(nid) != state->blob.dtype) {
+      if (node_dtype_->at(idx.entry_id(nid, 0)) != state->blob.dtype) {
         need_redo_infer = true; break;
       }
     }
