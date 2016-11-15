@@ -74,6 +74,20 @@ NNVM_REGISTER_OP(equal)
 )");
 
 
+NNVM_REGISTER_OP(__ewise_sum__)
+.set_attr<FLuaCompute>(
+  "FLuaCompute", R"(
+  function(x, y, kwarg)
+    return function()
+      y[1]:fill(0)
+      for i = 1, #x do
+        torch.add(y[1], y[1], x[i])
+      end
+    end
+  end
+)");
+
+
 NNVM_REGISTER_OP(__add_symbol__)
 .set_attr<FLuaCompute>(
   "FLuaCompute", R"(

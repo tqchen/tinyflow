@@ -15,20 +15,20 @@ NNVM_REGISTER_OP(softmax)
 )");
 
 
-NNVM_REGISTER_OP(relu)
-.set_attr<FLuaCreateNNModule>(
-  "FLuaCreateNNModule", R"(
-  function(ishape, kwarg)
-    return nn.ReLU()
-  end
-)");
-
-
 NNVM_REGISTER_OP(tanh)
 .set_attr<FLuaCreateNNModule>(
   "FLuaCreateNNModule", R"(
   function(ishape, kwarg)
     return nn.Tanh()
+  end
+)");
+
+
+NNVM_REGISTER_OP(relu)
+.set_attr<FLuaCreateNNModule>(
+  "FLuaCreateNNModule", R"(
+  function(ishape, kwarg)
+    return nn.ReLU()
   end
 )");
 
@@ -42,6 +42,18 @@ NNVM_REGISTER_OP(linear)
     if #ishape == 2 then
       m = m:noBias()
     end
+    return m
+  end
+)");
+
+
+NNVM_REGISTER_OP(pad)
+.set_attr<FLuaCreateNNModule>(
+  "FLuaCreateNNModule", R"(
+  function(ishape, kwarg)
+    local dim = tonumber(kwarg.dim) + 1
+    local pad = tonumber(kwarg.pad)
+    local m = nn.Padding(dim, pad)
     return m
   end
 )");
@@ -99,6 +111,39 @@ NNVM_REGISTER_OP(max_pool)
       padH = math.floor((kH - 1) / 2)
     end
     return nn.SpatialMaxPooling(kW, kH, dW, dH, padW, padH)
+  end
+)");
+
+
+NNVM_REGISTER_OP(avg_pool)
+.set_attr<FLuaCreateNNModule>(
+  "FLuaCreateNNModule", R"(
+  function(ishape, kwarg)
+    local ksize = nn_parse_tuple(kwarg.ksize)
+    local stride = nn_parse_tuple(kwarg.strides, {1,1,1,1})
+    local kH = ksize[2]
+    local kW = ksize[3]
+    local dH = stride[2]
+    local dW = stride[3]
+    local padH = 0
+    local padW = 0
+    assert(kwarg.data_format == 'NCHW')
+    if kwarg.padding == 'SAME' then
+      padW = math.floor((kW - 1) / 2)
+      padH = math.floor((kH - 1) / 2)
+    end
+    local m = nn.SpatialAveragePooling(kW, kH, dW, dH, padW, padH)
+    return m
+  end
+)");
+
+
+NNVM_REGISTER_OP(batch_normalization)
+.set_attr<FLuaCreateNNModule>(
+  "FLuaCreateNNModule", R"(
+  function(ishape, kwarg)
+    local n = ishape[1][2]
+    return nn.SpatialBatchNormalization(n)
   end
 )");
 

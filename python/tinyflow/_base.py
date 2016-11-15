@@ -35,17 +35,26 @@ float32 = 0
 # global list of all variable initializers
 _all_variable_inits = []
 
-def placeholder(dtype, shape=None, name=None):
-    v = symbol.placeholder(name=name, dtype=dtype)
+
+def Variable(init=None, name=None):
+    name = NameManager.current.get(name, 'variable')
+    v = symbol.Variable(name)
+    if init is not None:
+        if not isinstance(init, symbol.Symbol):
+            raise TypeError("Expect initialization expression to be Symbol")
+        _all_variable_inits.append(symbol.assign(v, init))
     return v
 
 
-def Variable(init, name=None):
-    if not isinstance(init, symbol.Symbol):
-        raise TypeError("Expect initialization expression to be Symbol")
-    name = NameManager.current.get(name, 'variable')
-    v = symbol.Variable(name)
-    _all_variable_inits.append(symbol.assign(v, init))
+def initialize_all_variables():
+    global _all_variable_inits
+    init_op = group(*_all_variable_inits)
+    _all_variable_inits = []
+    return init_op
+
+
+def placeholder(dtype, name=None):
+    v = symbol.placeholder(name=name, dtype=dtype)
     return v
 
 
@@ -54,12 +63,6 @@ def group(*inputs):
     x._add_control_deps(symbol.Group(inputs))
     return x
 
-
-def initialize_all_variables():
-    global _all_variable_inits
-    init_op = group(*_all_variable_inits)
-    _all_variable_inits = []
-    return init_op
 
 def gradients(ys, xs, grad_ys=None):
     if isinstance(ys, list):
