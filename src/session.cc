@@ -67,6 +67,7 @@ class TorchSession : public Session {
  private:
   // entry to store cached executor
   struct ExecEntry {
+    nnvm::Symbol cached_symbol;
     std::shared_ptr<TorchExecutor> exec;
     size_t use_count{0};
   };
@@ -74,7 +75,7 @@ class TorchSession : public Session {
   // local cached variable states.
   VarStateMap states_;
   // cached executor
-  std::unordered_map<Symbol*, ExecEntry> cached_execs_;
+  std::unordered_map<uint64_t, ExecEntry> cached_execs_;
 };
 
 
@@ -145,17 +146,23 @@ Session* Session::Create(const std::string& option) {
 }
 
 const std::vector<TBlob>& TorchSession::Run(
-    nnvm::Symbol* sym,
+    nnvm::Symbol* new_sym,
     const std::unordered_map<std::string, TBlob>& inputs) {
-  if (cached_execs_.count(sym) != 0) {
-    auto& entry = cached_execs_.at(sym);
-    const nnvm::Symbol& s = entry.exec->symbol();
-    bool stale_exec = (s.outputs.size() != sym->outputs.size());
+  // compute the hash value
+  uint64_t hash_value = new_sym->outputs.size();
+  for (NodeEntry& e : new_sym->outputs) {
+    uint64_t value = reinterpret_cast<uint64_t>(e.node.get());
+    hash_value ^= value + 0x9e3779b9 + (hash_value << 6) + (hash_value >> 2);
+  }
+  if (cached_execs_.count(hash_value) != 0) {
+    auto& entry = cached_execs_.at(hash_value);
+    const nnvm::Symbol& old_sym = entry.cached_symbol;
+    bool stale_exec = (old_sym.outputs.size() != new_sym->outputs.size());
     if (!stale_exec) {
-      for (size_t i = 0; i < s.outputs.size(); ++i) {
-        if (s.outputs[i].node.get() != sym->outputs[i].node.get() ||
-            s.outputs[i].index != sym->outputs[i].index ||
-            s.outputs[i].version != sym->outputs[i].version) {
+      for (size_t i = 0; i < old_sym.outputs.size(); ++i) {
+        if (old_sym.outputs[i].node.get() != new_sym->outputs[i].node.get() ||
+            old_sym.outputs[i].index != new_sym->outputs[i].index ||
+            old_sym.outputs[i].version != new_sym->outputs[i].version) {
           stale_exec = true; break;
         }
       }
@@ -164,16 +171,18 @@ const std::vector<TBlob>& TorchSession::Run(
       ++entry.use_count;
       return entry.exec->Run(inputs);
     } else {
-      cached_execs_.erase(sym);
+      cached_execs_.erase(hash_value);
     }
   }
   // dump technique, remove all previous executors
   // better strategy, LRU?
+  LOG(INFO) << "New Executor";
   cached_execs_.clear();
   ExecEntry e;
+  e.cached_symbol = *new_sym;
   e.exec = std::make_shared<TorchExecutor>();
-  e.exec->Init(*sym, &states_, default_dev_mask_);
-  cached_execs_[sym] = e;
+  e.exec->Init(*new_sym, &states_, default_dev_mask_);
+  cached_execs_[hash_value] = e;
   return e.exec->Run(inputs);
 }
 
