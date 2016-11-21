@@ -351,12 +351,15 @@ void TorchExecutor::SetupShapeDType(
 
   for (uint32_t nid : read_var_nids_) {
     VarState* state = node_states_[nid];
-    if (!state->initialized()) {
-        LOG(WARNING) << "Attempt to execute a graph un-initialized Variable";
-        continue;
+    // TODO more strict rule
+    if (state->initialized()) {
+        new_shape[idx.entry_id(nid, 0)] = state->blob.shape;
+        new_dtype[idx.entry_id(nid, 0)] = state->blob.dtype;
+    } else if (std::find(assign_var_nids_.cbegin(),
+                assign_var_nids_.cend())) {
+        CHECK(state->initialized())
+            << "Attempt to execute a graph un-initialized Variable";
     }
-    new_shape[idx.entry_id(nid, 0)] = state->blob.shape;
-    new_dtype[idx.entry_id(nid, 0)] = state->blob.dtype;
   }
   for (uint32_t nid : placeholder_nids_) {
     const std::string& key = idx[nid].source->attrs.name;
