@@ -178,6 +178,38 @@ NNVM_REGISTER_OP(linear)
 .set_attr<FInferShape>("FInferShape", LinearShape);
 
 
+struct PadParam : public dmlc::Parameter<PadParam> {
+  uint32_t dim;
+  int pad;
+
+  DMLC_DECLARE_PARAMETER(PadParam) {
+    DMLC_DECLARE_FIELD(dim).set_default(0);
+    DMLC_DECLARE_FIELD(pad).set_default(0);
+  }
+};
+DMLC_REGISTER_PARAMETER(PadParam);
+
+inline bool PadShape(const NodeAttrs& attrs,
+                         std::vector<TShape> *ishape,
+                         std::vector<TShape> *oshape) {
+  const auto& param = dmlc::get<PadParam>(attrs.parsed);
+  if (ishape->at(0).ndim() == 0) {
+    return false;
+  }
+  TShape out = ishape->at(0);
+  out[param.dim] += abs(param.pad);
+  oshape->at(0) = out;
+  return true;
+}
+
+NNVM_REGISTER_OP(pad)
+.describe("pads a tensor")
+.set_num_inputs(1)
+.include("nn_module")
+.set_attr_parser(ParamParser<PadParam>)
+.set_attr<FInferShape>("FInferShape", PadShape);
+
+
 struct ConvPoolParam : public dmlc::Parameter<ConvPoolParam> {
   TShape ksize;
   TShape strides;
@@ -261,6 +293,46 @@ NNVM_REGISTER_OP(max_pool)
 .set_attr_parser(ParamParser<ConvPoolParam>)
 .include("nn_module")
 .set_attr<FInferShape>("FInferShape", ConvPoolShape);
+
+
+NNVM_REGISTER_OP(avg_pool)
+.describe("Avg pooling")
+.set_num_inputs(1)
+.set_attr_parser(ParamParser<ConvPoolParam>)
+.include("nn_module")
+.set_attr<FInferShape>("FInferShape", ConvPoolShape);
+
+
+struct BatchNormalizationParam : public dmlc::Parameter<BatchNormalizationParam> {
+  std::string name;
+  DMLC_DECLARE_PARAMETER(BatchNormalizationParam) {
+    DMLC_DECLARE_FIELD(name).set_default("batch_normalization");
+  }
+};
+DMLC_REGISTER_PARAMETER(BatchNormalizationParam);
+
+inline bool BatchNormalizationShape(const NodeAttrs& attrs,
+                                    std::vector<TShape> *ishape,
+                                    std::vector<TShape> *oshape) {
+  if (ishape->at(0).ndim() == 0) return false;
+  const TShape& in = ishape->at(0);
+  CHECK_EQ(in.ndim(), 4);
+  TShape mean = TShape{in[1]};
+  SHAPE_ASSIGN(ishape->at(1), mean);
+  SHAPE_ASSIGN(ishape->at(2), mean);
+  oshape->at(0) = in;
+  return true;
+}
+
+NNVM_REGISTER_OP(batch_normalization)
+.describe("batch normalization")
+.set_num_inputs(3)
+.set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
+    return std::vector<std::string>{"data", "gamma", "beta"};
+})
+.set_attr_parser(ParamParser<BatchNormalizationParam>)
+.include("nn_module")
+.set_attr<FInferShape>("FInferShape", BatchNormalizationShape);
 
 
 NNVM_REGISTER_OP(mean_sparse_softmax_cross_entropy_with_logits)

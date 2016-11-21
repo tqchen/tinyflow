@@ -126,6 +126,22 @@ def test_argmax():
     npy = np.argmax(ax, 1)
     assert(np.mean(np.abs(ay - npy))) < 1e-6
 
+def test_pad():
+    out_filter = 10
+    in_filter  = 4
+    pad_width = (out_filter-in_filter)//2
+    x = tf.placeholder(tf.float32)
+    y = tf.pad(x, dim=1, pad=-pad_width)
+    z = tf.pad(y, dim=1, pad=pad_width)
+    nx  = np.random.randn(100, 4, 28, 28)
+    npy = np.pad(nx, ((0, 0), (pad_width, pad_width), (0, 0), (0, 0)),
+            mode='constant', constant_values=0)
+    sess = tf.Session()
+    sess.run(tf.initialize_all_variables())
+    ay = sess.run(z, feed_dict={x : nx})
+    assert(np.mean(np.abs(ay - npy))) < 1e-6
+
+
 if __name__ == "__main__":
     test_ewise()
     test_exp()
@@ -136,4 +152,5 @@ if __name__ == "__main__":
     test_matmul()
     test_softmax()
     test_argmax()
+    test_pad()
     pass

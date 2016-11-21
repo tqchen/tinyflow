@@ -89,6 +89,18 @@ NNVM_REGISTER_OP(equal)
 .set_attr<FInferShape>("FInferShape", SameShape);
 
 
+NNVM_REGISTER_OP(__ewise_sum__)
+.describe("ewise sum")
+.set_num_inputs(nnvm::kVarg)
+.set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
+.set_attr<FInferShape>("FInferShape", SameShape)
+.set_attr<FGradient>(
+    "FGradient", [](const NodePtr& n,
+                    const std::vector<NodeEntry>& ograds) {
+      return std::vector<NodeEntry>(n->num_inputs(), ograds[0]);
+});
+
+
 NNVM_REGISTER_OP(__add_symbol__)
 .describe("add two data together")
 .set_num_inputs(2)
