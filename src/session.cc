@@ -176,7 +176,6 @@ const std::vector<TBlob>& TorchSession::Run(
   }
   // dump technique, remove all previous executors
   // better strategy, LRU?
-  LOG(INFO) << "New Executor";
   cached_execs_.clear();
   ExecEntry e;
   e.cached_symbol = *new_sym;
