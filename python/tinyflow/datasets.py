@@ -5,7 +5,7 @@ from sklearn.datasets import fetch_mldata
 import cPickle
 import sys
 import os
-
+from subprocess import call
 
 
 class ArrayPacker(object):
@@ -70,8 +70,19 @@ def load_batch(fpath, label_key='labels'):
 
 
 def get_cifar10(swap_axes=False):
-    origin = "http://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"
     path = "cifar-10-batches-py"
+    if not os.path.exists(path):
+        tar_file = "cifar-10-python.tar.gz"
+        origin = "http://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"
+        if os.path.exists(tar_file):
+            need_download = False
+        else:
+            need_download = True
+        if need_download:
+            call(["wget", origin])
+            call(["tar", "-xvf", "cifar-10-python.tar.gz"])
+        else:
+            call(["tar", "-xvf", "cifar-10-python.tar.gz"])
 
     nb_train_samples = 50000
 
