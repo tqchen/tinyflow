@@ -14,6 +14,16 @@ export LDFLAGS = -pthread -lm
 export CFLAGS =  -std=c++11 -Wall -O2 -msse2  -Wno-unknown-pragmas -funroll-loops\
 	  -fPIC -Iinclude -Idmlc-core/include -I$(NNVM_PATH)/include
 
+# whether use fusion
+USE_FUSION = 0
+ifeq ($(USE_FUSION), 1)
+  ifndef NNVM_FUSION_PATH
+  	NNVM_FUSION_PATH = $(NNVM_PATH)/plugin/nnvm-fusion/
+  endif
+  CFLAGS  += -DTINYFLOW_USE_FUSION=1 -I$(NNVM_FUSION_PATH)/include -I$(CUDA_PATH)/include
+  LDFLAGS += -L$(CUDA_PATH)/lib64 -lcuda -lnvrtc -lcudart
+endif
+
 .PHONY: clean all test lint doc
 
 UNAME_S := $(shell uname -s)
