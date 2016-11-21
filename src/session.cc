@@ -356,7 +356,7 @@ void TorchExecutor::SetupShapeDType(
         new_shape[idx.entry_id(nid, 0)] = state->blob.shape;
         new_dtype[idx.entry_id(nid, 0)] = state->blob.dtype;
     } else if (std::find(assign_var_nids_.cbegin(),
-                assign_var_nids_.cend())) {
+                assign_var_nids_.cend(), nid) == assign_var_nids_.cend()) {
         CHECK(state->initialized())
             << "Attempt to execute a graph un-initialized Variable";
     }

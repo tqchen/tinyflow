@@ -53,7 +53,7 @@ def initialize_all_variables():
     return init_op
 
 
-def placeholder(dtype, name=None):
+def placeholder(dtype, shape=None, name=None):
     v = symbol.placeholder(name=name, dtype=dtype)
     return v
 
