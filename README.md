@@ -68,3 +68,8 @@ Most of TinyFlow's code is self-contained.
 export PYTHONPATH=${PYTHONPATH}:/path/to/tinyflow/python:/path/to/tinyflow/nnvm/python
 ```
 - Try example program ```python example/mnist_softmax.py```
+
+## Enable Fusion in TinyFlow
+- Build NNVM with Fusion: uncomment fusion plugin part in config.mk, then `make`
+- Build TinyFlow: enable `USE_FUSION` in Makefile, then `make`
+- Try Example program `example/mnist_lenet.py`, change the config of session from `tf.Session(config='gpu')` to `tf.Session(config='gpu fusion')`
