@@ -75,17 +75,6 @@ def test_softmax():
     np.testing.assert_almost_equal(
         ay, ax / np.sum(ax, axis=1, keepdims=True))
 
-def test_bias_add():
-    x = tf.placeholder(tf.float32)
-    b = tf.placeholder(tf.float32)
-    y = tf.nn.bias_add(x, b)
-    ax = np.random.uniform(size=(2, 3))
-    ab = np.random.uniform(size=(3, ))
-    sess = tf.Session()
-    ay = sess.run(y, feed_dict={x:ax, b:ab})
-    np.testing.assert_almost_equal(
-        ay, ax + ab)
-
 def test_matmul():
     x = tf.placeholder(tf.float32)
     y = tf.placeholder(tf.float32)

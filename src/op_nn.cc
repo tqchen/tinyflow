@@ -68,7 +68,7 @@ NNVM_REGISTER_OP(_backward)
 .describe("backward operator of NN module")
 .set_num_outputs([] (const NodeAttrs& attrs) {
   const NNBackwardParam& param = dmlc::get<NNBackwardParam>(attrs.parsed);
-  return param.forward_readonly_inputs;
+  return param.forward_readonly_inputs - param.num_no_grad_inputs;
   })
 .set_num_inputs([] (const NodeAttrs& attrs) {
   const NNBackwardParam& param = dmlc::get<NNBackwardParam>(attrs.parsed);
@@ -77,17 +77,7 @@ NNVM_REGISTER_OP(_backward)
   if (param.need_outputs) n += 1;
   return n;
   })
-.set_attr<nnvm::FBackwardOutToInIndex>("FBackwardOutToInIndex", [](const NodeAttrs& attrs) {
-  const NNBackwardParam& param = dmlc::get<NNBackwardParam>(attrs.parsed);
-  std::vector<uint32_t> vec;
-  for (uint32_t i = 0; i < param.forward_readonly_inputs; ++i) {
-    vec.push_back(i);
-  }
-  return vec;
-  })
-.set_attr<nnvm::FBackwardInGradIndex>("FBackwardInGradIndex", [](const NodeAttrs& attrs) {
-    return std::vector<uint32_t>{0};
-  });
+.set_attr<nnvm::TIsBackward>("TIsBackward", true);
 
 
 // common attributes for nn module.
@@ -365,13 +355,6 @@ NNVM_REGISTER_OP(flatten_layer)
 NNVM_REGISTER_OP(_flatten_backward)
 .set_num_inputs(1)
 .set_attr<FInplaceOption>("FInplaceOption", InplaceIn0Out0)
-.set_attr<FBackwardOutToInIndex>(
-    "FBackwardOutToInIndex", [](const NodeAttrs& attrs) {
-      return std::vector<uint32_t>{0};
-    })
-.set_attr<FBackwardInGradIndex>(
-    "FBackwardInGradIndex", [](const NodeAttrs& attrs) {
-      return std::vector<uint32_t>{0};
-    });
+.set_attr<nnvm::TIsBackward>("TIsBackward", true);
 
 }  // namespace tinyflow

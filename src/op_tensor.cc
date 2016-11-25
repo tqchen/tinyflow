@@ -365,20 +365,7 @@ NNVM_REGISTER_OP(matmul)
 NNVM_REGISTER_OP(_matmul_backward)
 .set_num_inputs(3)
 .set_num_outputs(2)
-.set_attr<FBackwardOutToInIndex>(
-    "FBackwardOutToInIndex", [](const NodeAttrs& attrs) {
-      return std::vector<uint32_t>{0, 1};
-    })
-.set_attr<FBackwardInGradIndex>(
-    "FBackwardInGradIndex", [](const NodeAttrs& attrs) {
-      return std::vector<uint32_t>{0};
-    })
-.set_attr<FInplaceOption>(
-    "FInplaceOption", [](const NodeAttrs& attrs) {
-      // lhs->gradLhs
-      return std::vector<std::pair<int, int> >{{1, 0}};
-    });
-
+.set_attr<nnvm::TIsBackward>("TIsBackward", true);
 
 struct ReduceParam : public dmlc::Parameter<ReduceParam> {
   Tuple<int> reduction_indices;
@@ -440,14 +427,7 @@ NNVM_REGISTER_OP(reduce_mean)
 
 
 NNVM_REGISTER_OP_GROUP(ReduceBackwardIndeAttr)
-.set_attr<FBackwardOutToInIndex>(
-    "FBackwardOutToInIndex", [](const NodeAttrs& attrs) {
-      return std::vector<uint32_t>{0};
-    })
-.set_attr<FBackwardInGradIndex>(
-    "FBackwardInGradIndex", [](const NodeAttrs& attrs) {
-      return std::vector<uint32_t>{0};
-    });
+.set_attr<nnvm::TIsBackward>("TIsBackward", true);
 
 
 NNVM_REGISTER_OP(_reduce_sum_backward)
