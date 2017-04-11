@@ -79,8 +79,8 @@ NNVM_REGISTER_OP(__ewise_sum__)
   "FLuaCompute", R"(
   function(x, y, kwarg)
     return function()
-      y[1]:fill(0)
-      for i = 1, #x do
+      y[1]:copy(x[1])
+      for i = 2, #x do
         torch.add(y[1], y[1], x[i])
       end
     end
