@@ -16,6 +16,8 @@ To support the examples, it takes.
 Note that more code in operators can easily be added to make it as
 feature complete as most existing deep learning systems.
 
+
+
 ## What is it for
 As explained in the goal of [NNVM](https://github.com/dmlc/nnvm/),
 it is important to make modular and reusable components for to enable us to build
@@ -35,6 +37,9 @@ customized learning system easily.
 
 We believe the Unix Philosophy can building learning system more fun and everyone can be able to build
 and understand learning system better.
+
+## Deep Learning System Course
+If you are interested in learning how to build deep learning system from scratch, checkout [CSE 599G1: Deep Learning System](http://dlsys.cs.washington.edu/) from University of Washington. 
 
 ## The Design
 - The graph construction API is automatically reused from NNVM
