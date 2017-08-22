@@ -18,7 +18,7 @@ label = tf.placeholder(tf.float32)
 cross_entropy = tf.nn.mean_sparse_softmax_cross_entropy_with_logits(fc2, label)
 train_step = tf.train.GradientDescentOptimizer(0.5).minimize(cross_entropy)
 
-sess = tf.Session(device='gpu')
+sess = tf.Session(config='gpu')
 
 # Automatic variable shape inference API, infers the shape and initialize the weights.
 known_shape = {x: [100, 28 * 28], label: [100]}
