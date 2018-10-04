@@ -220,7 +220,7 @@ NNVM_REGISTER_OP(__div_symbol__)
         MakeNode("__div_symbol__", n->attrs.name + "_grad_0",
                  {ograds[0], n->inputs[1]}),
         MakeNode("__div_symbol__", n->attrs.name + "_grad_1",
-                 {n1, n2})
+                 {n2, n3})
       };
 });
 
